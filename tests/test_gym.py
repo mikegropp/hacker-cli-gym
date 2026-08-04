@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from hacker_cli_gym.content import compatible_lessons, load_lessons
@@ -270,6 +271,49 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(UnsafeCommand):
             check_command("Invoke-Command -ScriptBlock { Get-Process }", lesson)
         check_command("Invoke-Command -ScriptBlock { 2 + 3 }", lesson)
+
+
+class ExecutionEnvironmentTests(unittest.TestCase):
+    def test_windows_powershell_builds_its_native_module_path(self) -> None:
+        lesson = next(
+            item for item in load_lessons() if item.id == "powershell-get-disk"
+        )
+        completed = SimpleNamespace(stdout="0\n", stderr="", returncode=0)
+        host_environment = {
+            "APPDATA": r"C:\Users\runner\AppData\Roaming",
+            "LOCALAPPDATA": r"C:\Users\runner\AppData\Local",
+            "PATH": r"C:\Windows\System32",
+            "PSModulePath": (
+                r"C:\Users\runner\Documents\PowerShell\Modules;"
+                r"C:\Program Files\PowerShell\7\Modules"
+            ),
+            "ProgramData": r"C:\ProgramData",
+            "ProgramFiles": r"C:\Program Files",
+            "SystemRoot": r"C:\Windows",
+        }
+        command = "Get-Disk | Select-Object -First 1 -ExpandProperty Number"
+
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name).resolve()
+            with (
+                patch.dict(os.environ, host_environment, clear=True),
+                patch(
+                    "hacker_cli_gym.execution.shell_command",
+                    return_value=["powershell.exe", "-Command"],
+                ),
+                patch(
+                    "hacker_cli_gym.execution.subprocess.run",
+                    return_value=completed,
+                ) as mocked_run,
+            ):
+                result = run_command(command, lesson, workspace)
+
+        child_environment = mocked_run.call_args.kwargs["env"]
+        self.assertNotIn("PSModulePath", child_environment)
+        self.assertEqual(host_environment["LOCALAPPDATA"], child_environment["LOCALAPPDATA"])
+        self.assertEqual(str(workspace), child_environment["USERPROFILE"])
+        self.assertEqual(command, mocked_run.call_args.args[0][-1])
+        self.assertEqual("0\n", result.stdout)
 
 
 class ProgressTests(unittest.TestCase):

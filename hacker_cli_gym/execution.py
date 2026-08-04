@@ -391,9 +391,13 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
         raise RuntimeError(f"Required shell is unavailable for {lesson.id}: {lesson.shell}")
 
     inherited_keys = (
+        "APPDATA",
         "COMSPEC",
+        "LOCALAPPDATA",
         "PATHEXT",
-        "PSModulePath",
+        "ProgramData",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
         "SystemDrive",
         "SystemRoot",
         "WINDIR",
