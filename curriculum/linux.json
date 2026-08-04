@@ -170,31 +170,38 @@
       "order": 6,
       "section": "01-navigation-and-help",
       "command": "realpath",
-      "title": "Resolve a canonical absolute path",
-      "about": "realpath resolves a path to a canonical absolute form, removing relative components and following symbolic links by default.",
-      "example": "realpath notes.txt",
-      "example_output": "/home/learner/notes.txt\n",
+      "title": "Trace a chain of symbolic links",
+      "about": "realpath prints the canonical absolute path of a file. It resolves every symbolic link it encounters and removes relative components such as . and .. along the way.",
+      "example": "realpath current/config.ini",
+      "example_output": "/srv/releases/2026/config.ini\n",
       "breakdown": [
-        "notes.txt begins as a relative path.",
-        "realpath emits its resolved absolute form."
+        "current may itself be a symbolic link to a release directory.",
+        "realpath follows each link in the chain until it reaches the actual file.",
+        "The result is one unambiguous, canonical absolute path."
       ],
-      "task": "Resolve notes.txt to its absolute canonical path.",
-      "solution": "realpath notes.txt",
+      "task": "entry.conf passes through three symbolic links. Resolve the entire chain and print the final canonical path of the actual file.",
+      "solution": "realpath entry.conf",
       "hints": [
-        "Pass the relative filename to realpath."
+        "Start with the visible entry point: entry.conf.",
+        "Use realpath followed by the symlink name; it follows the whole chain automatically."
       ],
       "files": {
-        "notes.txt": "resolved\n"
+        "vault/releases/2026/config/app.conf": "mode=practice\n"
+      },
+      "symlinks": {
+        "vault/current": "releases/2026",
+        "active": "vault/current",
+        "entry.conf": "active/config/app.conf"
       },
       "checks": [
         {
           "type": "stdout",
-          "description": "The canonical notes.txt path was printed.",
-          "expected": "{{workspace}}/notes.txt",
+          "description": "The final canonical app.conf path was printed.",
+          "expected": "{{workspace}}/vault/releases/2026/config/app.conf",
           "normalize": "trim"
         }
       ],
-      "completion": "Canonicalization can follow links and change the visible path. Preserve the original path separately when that distinction matters."
+      "completion": "You followed entry.conf through active and vault/current to the real release file. This is especially useful when stable names such as current or active hide versioned deployment paths."
     },
     {
       "id": "linux-which",
