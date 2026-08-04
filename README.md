@@ -93,6 +93,20 @@ the checker when you return.
 ./gym build                 # rebuild after pulling changes
 ```
 
+## VM clock troubleshooting
+
+Docker uses the Linux host's clock. The image build tolerates up to one hour of
+normal clock drift from pausing or restoring a VM. If APT still reports that a
+Debian `Release` file "is not valid yet," synchronize the VM and rebuild:
+
+```console
+sudo timedatectl set-ntp true
+timedatectl status
+./gym build
+```
+
+The build deliberately keeps APT's repository-expiration checks enabled.
+
 ## The 100-command path
 
 | Reps | Section | Commands |
