@@ -24,4 +24,5 @@ jobs:
         run: docker run --rm --network none hacker-cli-gym:test test
 
       - name: Report image size
-        run: docker image inspect hacker-cli-gym:test --format 'Image size: {{.Size}} bytes'
+        run: |
+          docker image inspect hacker-cli-gym:test --format 'Image size: {{.Size}} bytes'
