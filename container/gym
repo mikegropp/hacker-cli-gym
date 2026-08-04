@@ -163,6 +163,21 @@ next_order_id() {
   jq -r --argjson order "$LESSON_ORDER" '.lessons[] | select(.order == ($order + 1)) | .id' "$CATALOG"
 }
 
+previous_order_id() {
+  jq -r --argjson order "$LESSON_ORDER" '.lessons[] | select(.order == ($order - 1)) | .id' "$CATALOG"
+}
+
+lesson_id_for_selector() {
+  local selector=$1
+  jq -r --arg selector "$selector" '
+    first(
+      .lessons[]
+      | select(.id == $selector or .command == $selector or (.order | tostring) == $selector)
+      | .id
+    ) // empty
+  ' "$CATALOG"
+}
+
 safe_relative_path() {
   local path=$1
   [[ -n $path && $path != /* && $path != '..' && $path != ../* && $path != */../* && $path != */.. ]]
@@ -225,7 +240,7 @@ show_lesson() {
   show_example
   printf '\n%sYOUR MISSION%s\n%s\n' "$BOLD" "$RESET" "$(jq -r '.task' <<<"$LESSON_JSON")"
   printf '%sWorkspace: %s · any Bash command or pipeline is allowed%s\n' "$DIM" "$WORKSPACE" "$RESET"
-  printf '%sUse :hint, :files, :reset, :shell, :check, :next, or :help.%s\n\n' "$DIM" "$RESET"
+  printf '%sUse :hint, :files, :reset, :shell, :check, :next, :previous, :go, or :help.%s\n\n' "$DIM" "$RESET"
 }
 
 show_files() {
@@ -436,6 +451,8 @@ Gym controls
   :lesson     repeat the mission
   :status     show XP, level, streak, and completion
   :next       move to the next rep (unfinished reps stay unfinished)
+  :previous   move to the previous rep
+  :go TARGET  jump to a rep by number, command, or lesson ID
   :quit       leave the container
 
 Everything else is evaluated as Bash. Use any valid command, pipeline,
@@ -469,8 +486,8 @@ list_reps() {
   ' "$CATALOG"
 }
 
-interactive_lesson() {
-  local selector=$1 attempts=0 hints_used=0 hint_index=0 completed_here=0 command_text count hint xp level rank next
+lesson_session() {
+  local selector=$1 attempts=0 hints_used=0 hint_index=0 completed_here=0 command_text count hint xp level rank next target target_id
   load_lesson "$selector" || die "Unknown rep '$selector'. Use 'gym list' to see valid IDs, numbers, and commands."
   seed_workspace
   show_lesson
@@ -544,10 +561,34 @@ interactive_lesson() {
         next=$(next_order_id)
         if [[ -z $next ]]; then
           printf 'That was rep 100. Nice work.\n'
+        else
+          NAVIGATE_TO=$next
           return 0
         fi
-        interactive_lesson "$next"
-        return
+        ;;
+      :previous|:prev)
+        next=$(previous_order_id)
+        if [[ -z $next ]]; then
+          printf 'This is rep 001; there is no previous rep.\n'
+        else
+          NAVIGATE_TO=$next
+          return 0
+        fi
+        ;;
+      :go)
+        printf 'Usage: :go <number|command|lesson-id>\n'
+        ;;
+      :go[[:space:]]*)
+        target=${command_text#:go}
+        target=${target#"${target%%[![:space:]]*}"}
+        target=${target%"${target##*[![:space:]]}"}
+        target_id=$(lesson_id_for_selector "$target")
+        if [[ -z $target_id ]]; then
+          printf "Unknown rep '%s'. Use :go with a number, command, or lesson ID.\n" "$target"
+        else
+          NAVIGATE_TO=$target_id
+          return 0
+        fi
         ;;
       :quit|:q) return 0 ;;
       :*) printf 'Unknown gym control. Use :help.\n' ;;
@@ -563,13 +604,27 @@ interactive_lesson() {
             rank=$(rank_for_level "$level")
             printf '\n%sREP COMPLETE%s\n%s\n' "$GREEN$BOLD" "$RESET" "$(jq -r '.completion' <<<"$LESSON_JSON")"
             printf 'Attempts: %d · Hints: %d · XP: +%d · Total: %d · Level %d %s\n' "$attempts" "$hints_used" "$xp" "$(total_xp)" "$level" "$rank"
-            printf 'Use :next when you are ready for rep %03d.\n' "$((LESSON_ORDER + 1))"
+            if ((LESSON_ORDER < 100)); then
+              printf 'Use :next when you are ready for rep %03d, or :go to jump elsewhere.\n' "$((LESSON_ORDER + 1))"
+            else
+              printf 'All 100 reps are available to replay with :previous or :go.\n'
+            fi
           fi
         else
           printf '%sAny valid approach can pass. Keep working or use :hint.%s\n' "$DIM" "$RESET"
         fi
         ;;
     esac
+  done
+}
+
+interactive_lesson() {
+  local selector=$1
+  while true; do
+    NAVIGATE_TO=
+    lesson_session "$selector"
+    [[ -n $NAVIGATE_TO ]] || return 0
+    selector=$NAVIGATE_TO
   done
 }
 
@@ -608,10 +663,37 @@ test_catalog() {
   ' "$CATALOG" >/dev/null
 }
 
+test_navigation_helpers() {
+  [[ $(lesson_id_for_selector 35) == linux-awk ]] || return 1
+  [[ $(lesson_id_for_selector awk) == linux-awk ]] || return 1
+  [[ $(lesson_id_for_selector linux-awk) == linux-awk ]] || return 1
+  [[ -z $(lesson_id_for_selector does-not-exist) ]] || return 1
+
+  load_lesson 1 || return 1
+  [[ -z $(previous_order_id) ]] || return 1
+  [[ $(next_order_id) == linux-ls ]] || return 1
+
+  load_lesson 6 || return 1
+  [[ $(previous_order_id) == linux-dirname ]] || return 1
+  [[ $(next_order_id) == linux-which ]] || return 1
+
+  load_lesson 100 || return 1
+  [[ $(previous_order_id) == linux-systemctl ]] || return 1
+  [[ -z $(next_order_id) ]] || return 1
+}
+
 test_reference_solutions() {
   local id solution failures=0
   printf 'Checking curriculum structure... '
   if test_catalog; then
+    printf '%sPASS%s\n' "$GREEN" "$RESET"
+  else
+    printf '%sFAIL%s\n' "$RED" "$RESET"
+    return 1
+  fi
+
+  printf 'Checking lesson navigation... '
+  if test_navigation_helpers; then
     printf '%sPASS%s\n' "$GREEN" "$RESET"
   else
     printf '%sFAIL%s\n' "$RED" "$RESET"

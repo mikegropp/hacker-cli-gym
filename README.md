@@ -72,6 +72,8 @@ Controls start with a colon so normal Linux commands remain untouched:
 :lesson     repeat the mission
 :status     show progress, XP, level, and streak
 :next       move to the next rep
+:previous   move to the previous rep
+:go TARGET  jump by number, command, or lesson ID
 :quit       leave the container
 ```
 
