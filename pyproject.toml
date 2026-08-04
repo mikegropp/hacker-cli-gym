@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hacker-cli-gym"
+version = "0.1.0"
+description = "A free, local-first gym for 100 practical Linux commands."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Primer Security"}
+]
+keywords = ["cli", "linux", "bash", "education", "terminal", "gamification"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Education"
+]
+dependencies = []
+
+[project.scripts]
+hacker-cli-gym = "hacker_cli_gym.cli:main"
+
+[tool.setuptools.package-data]
+hacker_cli_gym = ["lessons/schema.json", "lessons/*/*.json"]

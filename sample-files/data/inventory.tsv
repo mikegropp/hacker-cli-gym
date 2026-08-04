@@ -1,0 +1,6 @@
+asset	owner	state	zone
+web-01	platform	running	west
+web-02	platform	stopped	west
+db-01	data	running	east
+cache-01	platform	running	east
+worker-01	compute	maintenance	central

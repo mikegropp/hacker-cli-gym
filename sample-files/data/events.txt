@@ -1,0 +1,6 @@
+2026-08-01 INFO service_started
+2026-08-01 WARN disk_above_80_percent
+2026-08-01 INFO backup_completed
+2026-08-02 ERROR connection_timeout
+2026-08-02 INFO retry_succeeded
+2026-08-03 WARN certificate_expires_soon

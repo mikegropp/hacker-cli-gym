@@ -1,0 +1,33 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.14"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install curriculum utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash coreutils grep sed gawk util-linux bsdextrautils \
+            man-db less binutils xxd diffutils procps time ncal file gzip bzip2 \
+            xz-utils zip unzip iproute2 iputils-ping curl wget openssh-client rsync systemd
+      - name: Compile
+        run: python -m compileall -q hacker_cli_gym gym.py tests
+      - name: Test all 100 reference solutions
+        run: python -m unittest discover -s tests -v
+      - name: Doctor
+        run: python gym.py doctor

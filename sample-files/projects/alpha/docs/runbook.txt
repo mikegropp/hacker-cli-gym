@@ -1,0 +1,4 @@
+Start: verify app.conf, then check that port 8080 is available.
+Health: request the local /health endpoint.
+Logs: inspect recent ERROR and WARN entries before restarting anything.
+Backup: archive configuration and documentation before making a change.

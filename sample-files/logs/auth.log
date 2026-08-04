@@ -1,0 +1,5 @@
+2026-08-01T09:00:00Z host-a sshd[1201]: ACCEPTED user=alex source=192.0.2.10
+2026-08-01T09:02:14Z host-a sshd[1228]: FAILED user=guest source=198.51.100.7
+2026-08-01T09:02:48Z host-a sshd[1232]: FAILED user=guest source=198.51.100.7
+2026-08-01T09:04:19Z host-a sudo[1260]: ACCEPTED user=alex command=id
+2026-08-01T09:06:03Z host-a sshd[1291]: ACCEPTED user=sam source=203.0.113.25
