@@ -11,7 +11,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LC_ALL=C.UTF-8 \
     TERM=xterm-256color
 
-RUN apt-get update \
+# Docker containers share the host kernel clock. Paused and restored training
+# VMs commonly drift, so accept repository metadata up to one hour ahead while
+# keeping APT's date and expiration security checks enabled.
+RUN apt-get -o Acquire::Max-FutureTime=3600 update \
     && apt-get install --yes --no-install-recommends \
         bash \
         binutils \
