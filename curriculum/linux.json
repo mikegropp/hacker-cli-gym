@@ -1,0 +1,3238 @@
+{
+  "catalog_version": 1,
+  "track": "linux",
+  "platforms": [
+    "linux"
+  ],
+  "shell": "posix",
+  "title": "Hacker CLI Gym: 100 Foundational Linux Commands",
+  "lessons": [
+    {
+      "id": "linux-pwd",
+      "order": 1,
+      "section": "01-navigation-and-help",
+      "command": "pwd",
+      "title": "Know where you are",
+      "about": "pwd prints the absolute path of the shell's current working directory. Use it before a relative-path operation when location is uncertain.",
+      "example": "pwd",
+      "example_output": "/home/learner/projects\n",
+      "breakdown": [
+        "pwd needs no arguments here.",
+        "The result anchors every relative path that follows."
+      ],
+      "task": "Print the absolute path of this disposable practice workspace.",
+      "solution": "pwd",
+      "hints": [
+        "The topic command prints the current working directory."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The workspace path was printed.",
+          "expected": "{{workspace}}",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Orient first. A correct command in the wrong directory can still produce the wrong result."
+    },
+    {
+      "id": "linux-ls",
+      "order": 2,
+      "section": "01-navigation-and-help",
+      "command": "ls",
+      "title": "List visible and hidden entries",
+      "about": "ls lists directory entries. -a includes dotfiles and -1 prints one name per line, which makes the result easier to inspect or pipe.",
+      "example": "ls -a1",
+      "example_output": ".\n..\n.env\nnotes.txt\n",
+      "breakdown": [
+        "-a includes names beginning with a dot.",
+        "-1 uses one output line per entry."
+      ],
+      "task": "List every entry in the workspace, including hidden entries, one name per line.",
+      "solution": "ls -a1",
+      "hints": [
+        "Combine the all and one-entry-per-line options."
+      ],
+      "files": {
+        "notes.txt": "ready\n",
+        ".env": "MODE=lab\n"
+      },
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The hidden .env file was included.",
+          "expected": ".env"
+        },
+        {
+          "type": "stdout-contains",
+          "description": "notes.txt was included.",
+          "expected": "notes.txt"
+        }
+      ],
+      "completion": "A plain ls can hide operationally important dotfiles. Ask for the view the task actually requires."
+    },
+    {
+      "id": "linux-cd",
+      "order": 3,
+      "section": "01-navigation-and-help",
+      "command": "cd",
+      "title": "Change directory deliberately",
+      "about": "cd is a shell builtin that changes the current working directory. This rep combines it with pwd so the changed location is observable in one shell execution.",
+      "example": "cd reports && pwd",
+      "example_output": "/home/learner/reports\n",
+      "breakdown": [
+        "cd reports changes location only if it succeeds.",
+        "&& runs pwd after a successful change."
+      ],
+      "task": "Change into the reports directory and print the resulting absolute path.",
+      "solution": "cd reports && pwd",
+      "hints": [
+        "Use && to verify the change only after cd succeeds."
+      ],
+      "files": {
+        "reports/.keep": ""
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The reports directory became the working directory.",
+          "expected": "{{workspace}}/reports",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "cd changes shell state; it normally prints nothing. Pair navigation with pwd when you need explicit confirmation."
+    },
+    {
+      "id": "linux-basename",
+      "order": 4,
+      "section": "01-navigation-and-help",
+      "command": "basename",
+      "title": "Extract the final path component",
+      "about": "basename removes leading directory components from a path string. It does not require the named path to exist.",
+      "example": "basename reports/daily.txt",
+      "example_output": "daily.txt\n",
+      "breakdown": [
+        "reports/ is discarded.",
+        "daily.txt is the final path component."
+      ],
+      "task": "Print only the filename component of projects/alpha/notes.md.",
+      "solution": "basename projects/alpha/notes.md",
+      "hints": [
+        "Pass the complete relative path to basename."
+      ],
+      "files": {
+        "projects/alpha/notes.md": "alpha notes\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Only notes.md was printed.",
+          "expected": "notes.md",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "basename transforms a path string; it does not inspect or validate the filesystem object."
+    },
+    {
+      "id": "linux-dirname",
+      "order": 5,
+      "section": "01-navigation-and-help",
+      "command": "dirname",
+      "title": "Extract the directory portion",
+      "about": "dirname removes the final component from a path string and prints the directory portion.",
+      "example": "dirname reports/daily.txt",
+      "example_output": "reports\n",
+      "breakdown": [
+        "daily.txt is removed from the string.",
+        "The remaining directory expression is printed."
+      ],
+      "task": "Print only the directory portion of projects/alpha/notes.md.",
+      "solution": "dirname projects/alpha/notes.md",
+      "hints": [
+        "dirname complements basename."
+      ],
+      "files": {
+        "projects/alpha/notes.md": "alpha notes\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Only projects/alpha was printed.",
+          "expected": "projects/alpha",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "dirname is string processing. Combine it with realpath when canonical filesystem resolution matters."
+    },
+    {
+      "id": "linux-realpath",
+      "order": 6,
+      "section": "01-navigation-and-help",
+      "command": "realpath",
+      "title": "Resolve a canonical absolute path",
+      "about": "realpath resolves a path to a canonical absolute form, removing relative components and following symbolic links by default.",
+      "example": "realpath notes.txt",
+      "example_output": "/home/learner/notes.txt\n",
+      "breakdown": [
+        "notes.txt begins as a relative path.",
+        "realpath emits its resolved absolute form."
+      ],
+      "task": "Resolve notes.txt to its absolute canonical path.",
+      "solution": "realpath notes.txt",
+      "hints": [
+        "Pass the relative filename to realpath."
+      ],
+      "files": {
+        "notes.txt": "resolved\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The canonical notes.txt path was printed.",
+          "expected": "{{workspace}}/notes.txt",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Canonicalization can follow links and change the visible path. Preserve the original path separately when that distinction matters."
+    },
+    {
+      "id": "linux-which",
+      "order": 7,
+      "section": "01-navigation-and-help",
+      "command": "which",
+      "title": "Locate an executable on PATH",
+      "about": "which searches PATH for an executable name. It is useful for a quick external-command location, but shell builtins and aliases require type or command -V.",
+      "example": "which grep",
+      "example_output": "/usr/bin/grep\n",
+      "breakdown": [
+        "PATH directories are searched in order.",
+        "The first matching executable path is printed."
+      ],
+      "task": "Print the executable path selected for grep.",
+      "solution": "which grep",
+      "hints": [
+        "Give which the executable name, not a full path."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The selected path ends with grep.",
+          "expected": "grep"
+        },
+        {
+          "type": "exit-code",
+          "description": "grep was found on PATH.",
+          "expected": 0
+        }
+      ],
+      "completion": "which answers a PATH question. Use type when shell functions, aliases, and builtins are also possible."
+    },
+    {
+      "id": "linux-whereis",
+      "order": 8,
+      "section": "01-navigation-and-help",
+      "command": "whereis",
+      "title": "Find command-related paths",
+      "about": "whereis searches standard locations for a command's binary, source, and manual-page files. Its result can contain several paths.",
+      "example": "whereis bash",
+      "example_output": "bash: /usr/bin/bash /usr/share/man/man1/bash.1.gz\n",
+      "breakdown": [
+        "bash is the lookup name.",
+        "The labeled result may include a binary and documentation."
+      ],
+      "task": "Use whereis to locate files associated with bash.",
+      "solution": "whereis bash",
+      "hints": [
+        "Pass the command name to whereis."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The result was labeled for bash.",
+          "expected": "bash:"
+        }
+      ],
+      "completion": "whereis uses known location databases, not an unrestricted filesystem walk. Use find for a scoped live search."
+    },
+    {
+      "id": "linux-type",
+      "order": 9,
+      "section": "01-navigation-and-help",
+      "command": "type",
+      "title": "Ask Bash how a name resolves",
+      "about": "type is a Bash builtin that explains whether a name resolves to an alias, function, builtin, keyword, or executable.",
+      "example": "type cd",
+      "example_output": "cd is a shell builtin\n",
+      "breakdown": [
+        "cd is looked up using Bash's own resolution rules.",
+        "The result identifies it as a builtin."
+      ],
+      "task": "Ask Bash how the name cd resolves.",
+      "solution": "type cd",
+      "hints": [
+        "Use the shell builtin named in the topic."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "cd was identified as a shell builtin.",
+          "expected": "shell builtin"
+        }
+      ],
+      "completion": "type is more complete than which for understanding what Bash will actually execute."
+    },
+    {
+      "id": "linux-man",
+      "order": 10,
+      "section": "01-navigation-and-help",
+      "command": "man",
+      "title": "Open local command documentation",
+      "about": "man displays local manual pages. This noninteractive rep checks the help surface; in a normal terminal, man ls opens the complete page in a pager.",
+      "example": "man --help | head -n 1",
+      "example_output": "Usage: man [OPTION...] [SECTION] PAGE...\n",
+      "breakdown": [
+        "--help prints man usage without opening a pager.",
+        "head keeps this rep short."
+      ],
+      "task": "Print the first line of man's own help output.",
+      "solution": "man --help | head -n 1",
+      "hints": [
+        "Request --help, then limit the result to one line."
+      ],
+      "files": {},
+      "packages": [
+        "man-db"
+      ],
+      "checks": [
+        {
+          "type": "stdout-nonempty",
+          "description": "A man help line was printed."
+        },
+        {
+          "type": "exit-code",
+          "description": "man help completed successfully.",
+          "expected": 0
+        }
+      ],
+      "completion": "Manual pages are local, version-matched references. Search inside a page with /pattern and leave the pager with q."
+    },
+    {
+      "id": "linux-mkdir",
+      "order": 11,
+      "section": "02-files-and-directories",
+      "command": "mkdir",
+      "title": "Create a nested directory tree",
+      "about": "mkdir creates directories. -p creates missing parents and treats an existing requested directory as success.",
+      "example": "mkdir -p evidence/screenshots",
+      "example_output": "",
+      "breakdown": [
+        "-p creates evidence if needed.",
+        "The final screenshots directory is created below it."
+      ],
+      "task": "Create reports/daily in one command.",
+      "solution": "mkdir -p reports/daily",
+      "hints": [
+        "Use the parent-creation option."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "reports/daily exists as a directory.",
+          "path": "reports/daily",
+          "kind": "directory"
+        }
+      ],
+      "completion": "mkdir -p is script-friendly, but a typo can still create the wrong tree. Verify the path."
+    },
+    {
+      "id": "linux-rmdir",
+      "order": 12,
+      "section": "02-files-and-directories",
+      "command": "rmdir",
+      "title": "Remove an empty directory",
+      "about": "rmdir removes empty directories only. That narrow behavior is safer than recursive removal when emptiness is a required precondition.",
+      "example": "rmdir old-empty-dir",
+      "example_output": "",
+      "breakdown": [
+        "The target must be empty.",
+        "A successful removal normally prints nothing."
+      ],
+      "task": "Remove the empty directory named retired.",
+      "solution": "rmdir retired",
+      "hints": [
+        "The directory is empty, so recursive rm is unnecessary."
+      ],
+      "directories": [
+        "retired"
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "path-not-exists",
+          "description": "The retired directory no longer exists.",
+          "path": "retired"
+        }
+      ],
+      "completion": "rmdir refuses nonempty directories. That refusal is useful evidence that the scope is broader than expected."
+    },
+    {
+      "id": "linux-touch",
+      "order": 13,
+      "section": "02-files-and-directories",
+      "command": "touch",
+      "title": "Create an empty marker file",
+      "about": "touch creates a missing file or updates timestamps on an existing one. It does not guarantee that an existing file is empty.",
+      "example": "touch ready.flag",
+      "example_output": "",
+      "breakdown": [
+        "ready.flag is created when absent.",
+        "No content is written."
+      ],
+      "task": "Create an empty file named complete.flag.",
+      "solution": "touch complete.flag",
+      "hints": [
+        "Pass the new filename to touch."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "complete.flag exists as a file.",
+          "path": "complete.flag",
+          "kind": "file"
+        }
+      ],
+      "completion": "touch is also a timestamp tool. Inspect before assuming it created a new empty file."
+    },
+    {
+      "id": "linux-cp",
+      "order": 14,
+      "section": "02-files-and-directories",
+      "command": "cp",
+      "title": "Copy without changing the source",
+      "about": "cp creates a destination from a source. A plain copy can overwrite an existing path, so verify both names first.",
+      "example": "cp source.txt backup.txt",
+      "example_output": "",
+      "breakdown": [
+        "source.txt is read.",
+        "backup.txt receives the same content."
+      ],
+      "task": "Copy briefing.txt to briefing.backup.",
+      "solution": "cp briefing.txt briefing.backup",
+      "hints": [
+        "Source comes before destination."
+      ],
+      "files": {
+        "briefing.txt": "scope\nevidence\ncleanup\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "The backup contains the briefing.",
+          "path": "briefing.backup",
+          "expected": "scope\nevidence\ncleanup",
+          "normalize": "trim"
+        },
+        {
+          "type": "file-content",
+          "description": "The source remains unchanged.",
+          "path": "briefing.txt",
+          "expected": "scope\nevidence\ncleanup",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Copying preserves the source path. Metadata preservation requires explicit options such as -a or -p."
+    },
+    {
+      "id": "linux-mv",
+      "order": 15,
+      "section": "02-files-and-directories",
+      "command": "mv",
+      "title": "Rename a file",
+      "about": "mv moves or renames a path. Within one filesystem, a rename usually changes directory metadata rather than copying file bytes.",
+      "example": "mv draft.txt final.txt",
+      "example_output": "",
+      "breakdown": [
+        "draft.txt is the source name.",
+        "final.txt becomes the destination name."
+      ],
+      "task": "Rename report.draft to report.final.",
+      "solution": "mv report.draft report.final",
+      "hints": [
+        "Use the old path first and new path second."
+      ],
+      "files": {
+        "report.draft": "approved\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "report.final contains the report.",
+          "path": "report.final",
+          "expected": "approved",
+          "normalize": "trim"
+        },
+        {
+          "type": "path-not-exists",
+          "description": "The draft path is gone.",
+          "path": "report.draft"
+        }
+      ],
+      "completion": "mv can overwrite a destination. Use -i or -n when accidental replacement is a concern."
+    },
+    {
+      "id": "linux-rm",
+      "order": 16,
+      "section": "02-files-and-directories",
+      "command": "rm",
+      "title": "Remove one disposable file",
+      "about": "rm unlinks files. This rep is constrained to a synthetic temporary workspace that is discarded after completion.",
+      "example": "rm obsolete.txt",
+      "example_output": "",
+      "breakdown": [
+        "Only the named file is removed.",
+        "No recursive or force option is needed."
+      ],
+      "task": "Remove trash.txt and nothing else.",
+      "solution": "rm trash.txt",
+      "hints": [
+        "Name the one disposable file directly."
+      ],
+      "files": {
+        "trash.txt": "discard\n",
+        "keep.txt": "retain\n"
+      },
+      "checks": [
+        {
+          "type": "path-not-exists",
+          "description": "trash.txt was removed.",
+          "path": "trash.txt"
+        },
+        {
+          "type": "file-content",
+          "description": "keep.txt remains unchanged.",
+          "path": "keep.txt",
+          "expected": "retain",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "rm normally has no undo. Narrow the target, avoid unnecessary -r/-f, and verify what must remain."
+    },
+    {
+      "id": "linux-ln",
+      "order": 17,
+      "section": "02-files-and-directories",
+      "command": "ln",
+      "title": "Create a hard link",
+      "about": "ln creates a hard link by default. Both directory entries refer to the same inode rather than storing two independent copies.",
+      "example": "ln source.txt second-name.txt",
+      "example_output": "",
+      "breakdown": [
+        "source.txt already names an inode.",
+        "second-name.txt becomes another name for that inode."
+      ],
+      "task": "Create hardlink.txt as a hard link to source.txt.",
+      "solution": "ln source.txt hardlink.txt",
+      "hints": [
+        "Do not add -s; this rep asks for a hard link."
+      ],
+      "files": {
+        "source.txt": "one inode\n"
+      },
+      "checks": [
+        {
+          "type": "same-inode",
+          "description": "Both names reference the same inode.",
+          "path": "source.txt",
+          "other_path": "hardlink.txt"
+        }
+      ],
+      "completion": "Hard links share content and inode metadata. Removing one name does not remove the inode while another hard link remains."
+    },
+    {
+      "id": "linux-readlink",
+      "order": 18,
+      "section": "02-files-and-directories",
+      "command": "readlink",
+      "title": "Inspect a symbolic-link target",
+      "about": "readlink prints the target stored in a symbolic link. The stored target may itself be relative and may not exist.",
+      "example": "ln -s configs/app.conf current.conf && readlink current.conf",
+      "example_output": "configs/app.conf\n",
+      "breakdown": [
+        "ln -s creates a symbolic link.",
+        "readlink prints its stored target string."
+      ],
+      "task": "Create latest.log pointing to logs/app.log, then print the stored target.",
+      "solution": "ln -s logs/app.log latest.log && readlink latest.log",
+      "hints": [
+        "Create a symbolic link with ln -s, then inspect it."
+      ],
+      "files": {
+        "logs/app.log": "ready\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The stored relative target was printed.",
+          "expected": "logs/app.log",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "readlink reports the link's stored target; realpath resolves the resulting path through the filesystem."
+    },
+    {
+      "id": "linux-file",
+      "order": 19,
+      "section": "02-files-and-directories",
+      "command": "file",
+      "title": "Identify content type from bytes",
+      "about": "file examines content signatures and heuristics rather than trusting only a filename extension.",
+      "example": "file -b mystery.txt",
+      "example_output": "ASCII text\n",
+      "breakdown": [
+        "-b omits the filename label.",
+        "The file's bytes drive the description."
+      ],
+      "task": "Ask file to identify sample.txt without printing its filename.",
+      "solution": "file -b sample.txt",
+      "hints": [
+        "Use brief mode with -b."
+      ],
+      "files": {
+        "sample.txt": "plain ASCII sample\n"
+      },
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The data was identified as text.",
+          "expected": "text"
+        }
+      ],
+      "completion": "file is a clue, not a security verdict. Treat its label as an observation to validate when stakes are higher."
+    },
+    {
+      "id": "linux-stat",
+      "order": 20,
+      "section": "02-files-and-directories",
+      "command": "stat",
+      "title": "Read exact file metadata",
+      "about": "stat reports filesystem metadata. GNU stat -c accepts a format string so scripts can request only the needed field.",
+      "example": "stat -c '%s' sample.txt",
+      "example_output": "4\n",
+      "breakdown": [
+        "-c chooses a custom format.",
+        "%s is file size in bytes."
+      ],
+      "task": "Print only the byte size of bytes.txt.",
+      "solution": "stat -c '%s' bytes.txt",
+      "hints": [
+        "Use GNU stat format token %s."
+      ],
+      "files": {
+        "bytes.txt": "ABC\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The four-byte size was printed.",
+          "expected": "4",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Metadata formats differ across Unix families. This rep deliberately targets GNU stat as found on Linux."
+    },
+    {
+      "id": "linux-cat",
+      "order": 21,
+      "section": "03-reading-content",
+      "command": "cat",
+      "title": "Print a short text file",
+      "about": "cat writes file bytes to standard output. It is convenient for small known text files and as a pipeline source.",
+      "example": "cat motto.txt",
+      "example_output": "inspect before changing\n",
+      "breakdown": [
+        "motto.txt is opened for reading.",
+        "Its content is sent to stdout."
+      ],
+      "task": "Print all lines from briefing.txt.",
+      "solution": "cat briefing.txt",
+      "hints": [
+        "Pass the filename to cat."
+      ],
+      "files": {
+        "briefing.txt": "observe\nverify\nrecord\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The complete briefing was printed.",
+          "expected": "observe\nverify\nrecord",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Use less for long output and avoid sending unknown binary data directly to a terminal."
+    },
+    {
+      "id": "linux-less",
+      "order": 22,
+      "section": "03-reading-content",
+      "command": "less",
+      "title": "Page through long text",
+      "about": "less is an interactive pager with search and navigation. -F exits when the content fits and -X avoids clearing the terminal, making this rep noninteractive.",
+      "example": "less -F -X note.txt",
+      "example_output": "short note\n",
+      "breakdown": [
+        "-F quits when one screen is enough.",
+        "-X leaves the displayed text visible."
+      ],
+      "task": "Display note.txt through less and let it exit because the file is short.",
+      "solution": "less -F -X note.txt",
+      "hints": [
+        "Combine -F and -X for this short noninteractive rep."
+      ],
+      "files": {
+        "note.txt": "search with /pattern\nnext match with n\nquit with q\n"
+      },
+      "packages": [
+        "less"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The pager emitted the note content.",
+          "expected": "quit with q"
+        },
+        {
+          "type": "exit-code",
+          "description": "less exited successfully.",
+          "expected": 0
+        }
+      ],
+      "completion": "In a real interactive page, use /pattern to search, n for the next match, and q to quit."
+    },
+    {
+      "id": "linux-head",
+      "order": 23,
+      "section": "03-reading-content",
+      "command": "head",
+      "title": "Read the beginning",
+      "about": "head prints the beginning of a file or stream. -n sets an exact line count.",
+      "example": "head -n 2 queue.txt",
+      "example_output": "first\nsecond\n",
+      "breakdown": [
+        "-n 2 selects two lines.",
+        "The source remains unchanged."
+      ],
+      "task": "Print only the first three lines of events.txt.",
+      "solution": "head -n 3 events.txt",
+      "hints": [
+        "Use -n with a value of 3."
+      ],
+      "files": {
+        "events.txt": "login\nquery\nexport\nlogout\narchive\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The first three events were printed.",
+          "expected": "login\nquery\nexport",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "head is ideal for quickly learning a file's header and record shape."
+    },
+    {
+      "id": "linux-tail",
+      "order": 24,
+      "section": "03-reading-content",
+      "command": "tail",
+      "title": "Read the end",
+      "about": "tail prints the end of a file or stream. -n chooses the count; -f follows a growing file interactively.",
+      "example": "tail -n 2 queue.txt",
+      "example_output": "fourth\nfifth\n",
+      "breakdown": [
+        "-n 2 selects the final two lines.",
+        "No file content is changed."
+      ],
+      "task": "Print only the final two lines of events.txt.",
+      "solution": "tail -n 2 events.txt",
+      "hints": [
+        "Use tail with -n 2."
+      ],
+      "files": {
+        "events.txt": "login\nquery\nexport\nlogout\narchive\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The final two events were printed.",
+          "expected": "logout\narchive",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "tail -f is useful for live logs, but always stop the follower cleanly with Ctrl-C."
+    },
+    {
+      "id": "linux-nl",
+      "order": 25,
+      "section": "03-reading-content",
+      "command": "nl",
+      "title": "Number text lines",
+      "about": "nl numbers lines with configurable treatment of blank lines. Its default output includes padded line numbers and a tab.",
+      "example": "nl -ba note.txt",
+      "example_output": "     1\talpha\n     2\t\n     3\tbeta\n",
+      "breakdown": [
+        "-b a numbers all lines.",
+        "The original file is unchanged."
+      ],
+      "task": "Number every line in note.txt, including the blank line.",
+      "solution": "nl -ba note.txt",
+      "hints": [
+        "Use body-numbering style a to number all lines."
+      ],
+      "files": {
+        "note.txt": "alpha\n\nbeta\n"
+      },
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The blank line received line number 2.",
+          "expected": "2"
+        },
+        {
+          "type": "stdout-contains",
+          "description": "The third line contains beta.",
+          "expected": "beta"
+        }
+      ],
+      "completion": "nl has its own rules for logical pages and blank lines. Use cat -n when its simpler numbering behavior is what you need."
+    },
+    {
+      "id": "linux-tac",
+      "order": 26,
+      "section": "03-reading-content",
+      "command": "tac",
+      "title": "Reverse records by line",
+      "about": "tac prints file lines from last to first. Its name is cat reversed, but it reverses record order rather than characters.",
+      "example": "tac steps.txt",
+      "example_output": "third\nsecond\nfirst\n",
+      "breakdown": [
+        "The final input line is printed first.",
+        "Characters inside each line keep their order."
+      ],
+      "task": "Print priorities.txt from its final line to its first.",
+      "solution": "tac priorities.txt",
+      "hints": [
+        "Pass the filename directly to tac."
+      ],
+      "files": {
+        "priorities.txt": "low\nmedium\nhigh\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The line order was reversed.",
+          "expected": "high\nmedium\nlow",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "tac is a GNU/Linux utility; it reverses records, not bytes or words."
+    },
+    {
+      "id": "linux-strings",
+      "order": 27,
+      "section": "03-reading-content",
+      "command": "strings",
+      "title": "Extract printable sequences",
+      "about": "strings scans data for printable character sequences. It is useful for triage, but extracted text lacks the structure and provenance of a parser.",
+      "example": "strings blob.bin",
+      "example_output": "HEADER\nmode=lab\n",
+      "breakdown": [
+        "Nonprintable bytes are skipped.",
+        "Printable runs meeting the minimum length are emitted."
+      ],
+      "task": "Extract printable strings from blob.bin.",
+      "solution": "strings blob.bin",
+      "hints": [
+        "No option is required for the supplied blob."
+      ],
+      "files": {
+        "blob.bin": "\u0000\u0001HEADER\u0000\u0002secret=synthetic\u0000"
+      },
+      "packages": [
+        "binutils"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "HEADER was recovered.",
+          "expected": "HEADER"
+        },
+        {
+          "type": "stdout-contains",
+          "description": "The synthetic secret string was recovered.",
+          "expected": "secret=synthetic"
+        }
+      ],
+      "completion": "strings reveals printable runs, not necessarily meaningful fields. Validate findings with format-aware tools."
+    },
+    {
+      "id": "linux-od",
+      "order": 28,
+      "section": "03-reading-content",
+      "command": "od",
+      "title": "Inspect exact byte values",
+      "about": "od displays file bytes in selected numeric forms. -An removes offsets and -t x1 requests one-byte hexadecimal values.",
+      "example": "od -An -t x1 bytes.txt",
+      "example_output": " 41 42 43 0a\n",
+      "breakdown": [
+        "-An suppresses address labels.",
+        "x1 selects hexadecimal one byte at a time."
+      ],
+      "task": "Print bytes.txt as one-byte hexadecimal values without offsets.",
+      "solution": "od -An -t x1 bytes.txt",
+      "hints": [
+        "Combine -An with -t x1."
+      ],
+      "files": {
+        "bytes.txt": "ABC\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The exact four byte values were printed.",
+          "expected": "41 42 43 0a",
+          "normalize": "whitespace"
+        }
+      ],
+      "completion": "Byte views expose line endings, encodings, and hidden delimiters that rendered text can conceal."
+    },
+    {
+      "id": "linux-xxd",
+      "order": 29,
+      "section": "03-reading-content",
+      "command": "xxd",
+      "title": "Create a plain hexadecimal dump",
+      "about": "xxd converts bytes to hexadecimal and can reverse a compatible dump. -p selects a plain continuous hex form.",
+      "example": "xxd -p bytes.txt",
+      "example_output": "4142430a\n",
+      "breakdown": [
+        "-p omits addresses and ASCII columns.",
+        "Each byte becomes two hex digits."
+      ],
+      "task": "Print bytes.txt as plain hexadecimal.",
+      "solution": "xxd -p bytes.txt",
+      "hints": [
+        "Use xxd plain mode."
+      ],
+      "files": {
+        "bytes.txt": "ABC\n"
+      },
+      "packages": [
+        "xxd"
+      ],
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The plain hex bytes were printed.",
+          "expected": "4142430a",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "xxd -r reverses a compatible dump. A hex representation is evidence of bytes, not an interpretation of their format."
+    },
+    {
+      "id": "linux-wc",
+      "order": 30,
+      "section": "03-reading-content",
+      "command": "wc",
+      "title": "Count lines",
+      "about": "wc reports lines, words, and byte or character counts. -l asks specifically for lines.",
+      "example": "wc -l events.txt",
+      "example_output": "5 events.txt\n",
+      "breakdown": [
+        "-l chooses line count.",
+        "Naming a file includes its name in output."
+      ],
+      "task": "Count the lines in requests.txt and retain the filename label.",
+      "solution": "wc -l requests.txt",
+      "hints": [
+        "Use the line-count option."
+      ],
+      "files": {
+        "requests.txt": "one\ntwo\nthree\nfour\nfive\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "wc reported five lines for requests.txt.",
+          "expected": "5 requests.txt",
+          "normalize": "whitespace"
+        }
+      ],
+      "completion": "In a pipeline, wc -l counts records that survive the preceding filters."
+    },
+    {
+      "id": "linux-cut",
+      "order": 31,
+      "section": "04-text-processing",
+      "command": "cut",
+      "title": "Select delimited fields",
+      "about": "cut selects fields when input has a dependable simple delimiter. -d names the delimiter and -f chooses fields.",
+      "example": "cut -d',' -f1 crew.csv",
+      "example_output": "neo\ntrinity\nmorpheus\n",
+      "breakdown": [
+        "-d',' sets comma as delimiter.",
+        "-f1 selects the first field."
+      ],
+      "task": "accounts.txt uses colons. Print only the username in field 2.",
+      "solution": "cut -d':' -f2 accounts.txt",
+      "hints": [
+        "Set colon as delimiter and select field 2."
+      ],
+      "files": {
+        "accounts.txt": "1001:alice:analyst\n1002:bob:developer\n1003:carol:operator\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Only the usernames were printed.",
+          "expected": "alice\nbob\ncarol",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "cut does not understand quoted CSV. Use a format-aware parser when delimiters can appear inside fields."
+    },
+    {
+      "id": "linux-paste",
+      "order": 32,
+      "section": "04-text-processing",
+      "command": "paste",
+      "title": "Merge files line by line",
+      "about": "paste combines corresponding lines from input files. -d selects the output delimiter.",
+      "example": "paste -d, names.txt roles.txt",
+      "example_output": "alice,analyst\nbob,developer\n",
+      "breakdown": [
+        "Line 1 from each file is joined.",
+        "-d, places a comma between values."
+      ],
+      "task": "Combine hosts.txt and states.txt line by line with a comma.",
+      "solution": "paste -d, hosts.txt states.txt",
+      "hints": [
+        "Use comma as paste's delimiter."
+      ],
+      "files": {
+        "hosts.txt": "web-01\ndb-01\napi-02\n",
+        "states.txt": "online\nmaintenance\noffline\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Each host was paired with its state.",
+          "expected": "web-01,online\ndb-01,maintenance\napi-02,offline",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "paste pairs by line position. Validate row counts first when accidental misalignment would matter."
+    },
+    {
+      "id": "linux-grep",
+      "order": 33,
+      "section": "04-text-processing",
+      "command": "grep",
+      "title": "Keep matching records",
+      "about": "grep searches text and prints matching lines. -F is a useful choice when the pattern must be treated literally.",
+      "example": "grep ERROR app.log",
+      "example_output": "12:02 ERROR database unavailable\n",
+      "breakdown": [
+        "ERROR is the search pattern.",
+        "Matching complete lines are emitted."
+      ],
+      "task": "Print every service.log line containing DENIED.",
+      "solution": "grep DENIED service.log",
+      "hints": [
+        "Give grep the pattern and filename."
+      ],
+      "files": {
+        "service.log": "08:00 ALLOWED alice\n08:02 DENIED bob\n08:04 ALLOWED carol\n08:05 DENIED dave\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Only the DENIED records were printed.",
+          "expected": "08:02 DENIED bob\n08:05 DENIED dave",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Start literal, then add regular-expression power only when the task needs it."
+    },
+    {
+      "id": "linux-sed",
+      "order": 34,
+      "section": "04-text-processing",
+      "command": "sed",
+      "title": "Transform a text stream",
+      "about": "sed applies editing expressions to a stream. Without -i, transformed output goes to stdout and the source remains unchanged.",
+      "example": "sed 's/old/new/g' status.txt",
+      "example_output": "new value, new owner\n",
+      "breakdown": [
+        "s begins substitution.",
+        "g replaces all matches on each line."
+      ],
+      "task": "Print config.txt with every DEBUG changed to INFO, without editing the file.",
+      "solution": "sed 's/DEBUG/INFO/g' config.txt",
+      "hints": [
+        "Use a global substitution and omit -i."
+      ],
+      "files": {
+        "config.txt": "level=DEBUG\nlabel=DEBUG-build\nkeep=true\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Every DEBUG value was transformed.",
+          "expected": "level=INFO\nlabel=INFO-build\nkeep=true",
+          "normalize": "trim"
+        },
+        {
+          "type": "file-content",
+          "description": "The source remained unchanged.",
+          "path": "config.txt",
+          "expected": "level=DEBUG\nlabel=DEBUG-build\nkeep=true",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Preview stream output before an in-place edit. That small habit prevents many accidental file changes."
+    },
+    {
+      "id": "linux-awk",
+      "order": 35,
+      "section": "04-text-processing",
+      "command": "awk",
+      "title": "Process records and fields",
+      "about": "awk splits input into records and fields, then applies a small program. It handles conditional selection, formatting, and aggregation.",
+      "example": "awk -F, '{print $1 \": \" $3}' inventory.csv",
+      "example_output": "router: online\nswitch: offline\n",
+      "breakdown": [
+        "-F, sets comma as field separator.",
+        "$1 and $3 select fields.",
+        "Adjacent expressions concatenate output."
+      ],
+      "task": "Print asset name, colon-space, and status from inventory.csv fields 1 and 3.",
+      "solution": "awk -F, '{print $1 \": \" $3}' inventory.csv",
+      "hints": [
+        "Set comma as -F and concatenate fields 1 and 3."
+      ],
+      "files": {
+        "inventory.csv": "web-01,alice,online\ndb-01,bob,maintenance\napi-02,carol,offline\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Each asset and status was formatted correctly.",
+          "expected": "web-01: online\ndb-01: maintenance\napi-02: offline",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "awk is a record-processing language. Build and inspect small stages before compressing complex logic."
+    },
+    {
+      "id": "linux-tr",
+      "order": 36,
+      "section": "04-text-processing",
+      "command": "tr",
+      "title": "Translate characters",
+      "about": "tr translates or deletes characters from standard input. It operates character by character rather than on words or fields.",
+      "example": "tr '[:lower:]' '[:upper:]' < note.txt",
+      "example_output": "READY\n",
+      "breakdown": [
+        "Character classes describe lower and upper case.",
+        "< supplies the file through stdin."
+      ],
+      "task": "Print message.txt with lowercase letters converted to uppercase.",
+      "solution": "tr '[:lower:]' '[:upper:]' < message.txt",
+      "hints": [
+        "Redirect the file into tr and use character classes."
+      ],
+      "files": {
+        "message.txt": "verify the result\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The message was converted to uppercase.",
+          "expected": "VERIFY THE RESULT",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "tr is ideal for character-level mappings. Use sed or awk when context and fields matter."
+    },
+    {
+      "id": "linux-sort",
+      "order": 37,
+      "section": "04-text-processing",
+      "command": "sort",
+      "title": "Order records",
+      "about": "sort orders lines. Its default is lexical; use -n when numeric value rather than string order is intended.",
+      "example": "sort names.txt",
+      "example_output": "alice\nbob\ncarol\n",
+      "breakdown": [
+        "Every line becomes a sort record.",
+        "The source file is not edited."
+      ],
+      "task": "Print hosts.txt in ascending lexical order.",
+      "solution": "sort hosts.txt",
+      "hints": [
+        "Pass the filename to sort."
+      ],
+      "files": {
+        "hosts.txt": "web-03\ndb-01\nweb-01\napi-02\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The hosts were sorted ascending.",
+          "expected": "api-02\ndb-01\nweb-01\nweb-03",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Sorting output does not sort the source file. Redirect to a new file and verify before replacing data."
+    },
+    {
+      "id": "linux-uniq",
+      "order": 38,
+      "section": "04-text-processing",
+      "command": "uniq",
+      "title": "Collapse adjacent duplicates",
+      "about": "uniq compares neighboring lines. Sort first when equal values may be separated in the original input.",
+      "example": "sort colors.txt | uniq -c",
+      "example_output": "2 blue\n1 green\n",
+      "breakdown": [
+        "sort groups equal values.",
+        "uniq -c counts adjacent groups."
+      ],
+      "task": "Print each distinct color once in ascending order.",
+      "solution": "sort colors.txt | uniq",
+      "hints": [
+        "Pipe sorted input into uniq."
+      ],
+      "files": {
+        "colors.txt": "red\nblue\nred\ngreen\nblue\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Each color was printed once in order.",
+          "expected": "blue\ngreen\nred",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "uniq is adjacency-based. sort | uniq is the standard pattern for unordered text values."
+    },
+    {
+      "id": "linux-column",
+      "order": 39,
+      "section": "04-text-processing",
+      "command": "column",
+      "title": "Align delimited text for people",
+      "about": "column formats input into aligned columns. It is a display tool; do not parse its padded output as a stable data format.",
+      "example": "column -t -s, inventory.csv",
+      "example_output": "web-01  alice  online\n",
+      "breakdown": [
+        "-s, treats comma as separator.",
+        "-t creates a table."
+      ],
+      "task": "Format people.csv as an aligned table using comma as the separator.",
+      "solution": "column -t -s, people.csv",
+      "hints": [
+        "Combine table mode with comma separator."
+      ],
+      "files": {
+        "people.csv": "alice,analyst,blue\nbob,developer,green\ncarol,operator,blue\n"
+      },
+      "packages": [
+        "util-linux"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The table includes alice's row.",
+          "expected": "alice"
+        },
+        {
+          "type": "stdout-contains",
+          "description": "The table includes carol's row.",
+          "expected": "carol"
+        }
+      ],
+      "completion": "column improves human readability. Preserve CSV, TSV, or JSON for machine consumption."
+    },
+    {
+      "id": "linux-fmt",
+      "order": 40,
+      "section": "04-text-processing",
+      "command": "fmt",
+      "title": "Reflow paragraph text",
+      "about": "fmt reflows paragraphs to a target width. It is useful for prose, not structured records where line boundaries carry meaning.",
+      "example": "fmt -w 20 paragraph.txt",
+      "example_output": "This is a short line\nthat wraps cleanly.\n",
+      "breakdown": [
+        "-w 20 selects a twenty-column goal.",
+        "Words are reflowed without editing the file."
+      ],
+      "task": "Reflow paragraph.txt to a width of 24 columns.",
+      "solution": "fmt -w 24 paragraph.txt",
+      "hints": [
+        "Use -w to choose the target width."
+      ],
+      "files": {
+        "paragraph.txt": "Linux commands become easier when each pipeline stage has one clear responsibility.\n"
+      },
+      "checks": [
+        {
+          "type": "stdout-nonempty",
+          "description": "Reflowed paragraph text was printed."
+        },
+        {
+          "type": "file-content",
+          "description": "The source paragraph remained unchanged.",
+          "path": "paragraph.txt",
+          "expected": "Linux commands become easier when each pipeline stage has one clear responsibility.",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "fmt changes presentation line breaks. Never use it on logs or formats where a line is a record."
+    },
+    {
+      "id": "linux-echo",
+      "order": 41,
+      "section": "05-composition-and-comparison",
+      "command": "echo",
+      "title": "Print a simple string",
+      "about": "echo prints arguments separated by spaces. Option and escape behavior can vary, so use printf for strict portable formatting.",
+      "example": "echo 'hello linux'",
+      "example_output": "hello linux\n",
+      "breakdown": [
+        "Quotes keep the words as one shell argument.",
+        "echo appends a newline."
+      ],
+      "task": "Print the exact text practical linux.",
+      "solution": "echo 'practical linux'",
+      "hints": [
+        "Quote the two-word string."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The exact phrase was printed.",
+          "expected": "practical linux",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "echo is convenient for simple messages. Prefer printf when escapes, leading dashes, or exact formatting matter."
+    },
+    {
+      "id": "linux-printf",
+      "order": 42,
+      "section": "05-composition-and-comparison",
+      "command": "printf",
+      "title": "Format output predictably",
+      "about": "printf applies a format string to values and does not add a newline unless the format requests one.",
+      "example": "printf '%s\\n' alpha beta",
+      "example_output": "alpha\nbeta\n",
+      "breakdown": [
+        "%s formats one string at a time.",
+        "\\n requests a newline.",
+        "The format repeats for remaining values."
+      ],
+      "task": "Print red, green, and blue on separate lines with one printf command.",
+      "solution": "printf '%s\\n' red green blue",
+      "hints": [
+        "Use %s followed by a newline escape."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Each color was printed on its own line.",
+          "expected": "red\ngreen\nblue",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Treat the format string as data you control. Do not use untrusted text as the printf format."
+    },
+    {
+      "id": "linux-tee",
+      "order": 43,
+      "section": "05-composition-and-comparison",
+      "command": "tee",
+      "title": "See and save one stream",
+      "about": "tee copies standard input to standard output and one or more files. It is useful when a pipeline result must remain visible and be saved.",
+      "example": "printf 'verified\\n' | tee result.txt",
+      "example_output": "verified\n",
+      "breakdown": [
+        "printf produces the stream.",
+        "tee writes result.txt and passes the same text onward."
+      ],
+      "task": "Print ready and save the same line in status.txt.",
+      "solution": "printf 'ready\\n' | tee status.txt",
+      "hints": [
+        "Pipe printf into tee and name the output file."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "ready remained visible on stdout.",
+          "expected": "ready",
+          "normalize": "trim"
+        },
+        {
+          "type": "file-content",
+          "description": "status.txt contains ready.",
+          "path": "status.txt",
+          "expected": "ready",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "tee is not an audit guarantee; later stages can still fail. Preserve exit status and verification when the result matters."
+    },
+    {
+      "id": "linux-xargs",
+      "order": 44,
+      "section": "05-composition-and-comparison",
+      "command": "xargs",
+      "title": "Build argument lists from input",
+      "about": "xargs converts input items into command arguments. Delimiters and filenames with spaces require deliberate handling such as NUL-delimited input.",
+      "example": "printf 'alpha\\nbeta\\n' | xargs -n 1 echo",
+      "example_output": "alpha\nbeta\n",
+      "breakdown": [
+        "printf supplies two items.",
+        "-n 1 invokes echo with one item at a time."
+      ],
+      "task": "Pass red, green, and blue to echo one item per invocation.",
+      "solution": "printf 'red\\ngreen\\nblue\\n' | xargs -n 1 echo",
+      "hints": [
+        "Use -n 1 so each command receives one value."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Each color was echoed on its own line.",
+          "expected": "red\ngreen\nblue",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Use find -print0 with xargs -0 for arbitrary filenames. Whitespace-delimited input is not filename-safe."
+    },
+    {
+      "id": "linux-diff",
+      "order": 45,
+      "section": "05-composition-and-comparison",
+      "command": "diff",
+      "title": "Show line-oriented differences",
+      "about": "diff compares files line by line. Unified format (-u) provides context and is widely used in reviews and patches.",
+      "example": "diff -u old.txt new.txt",
+      "example_output": "-alpha\n+beta\n",
+      "breakdown": [
+        "-u selects unified format.",
+        "Exit status 1 means files differ, not that diff crashed."
+      ],
+      "task": "Print a unified comparison of old.txt and new.txt.",
+      "solution": "diff -u old.txt new.txt",
+      "hints": [
+        "Use unified output with -u."
+      ],
+      "files": {
+        "old.txt": "alpha\nshared\n",
+        "new.txt": "beta\nshared\n"
+      },
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The removed alpha line was shown.",
+          "expected": "-alpha"
+        },
+        {
+          "type": "stdout-contains",
+          "description": "The added beta line was shown.",
+          "expected": "+beta"
+        },
+        {
+          "type": "exit-code",
+          "description": "diff reported that files differ.",
+          "expected": 1
+        }
+      ],
+      "completion": "diff exit 1 means a difference was found. Always interpret a command's documented exit-status contract."
+    },
+    {
+      "id": "linux-cmp",
+      "order": 46,
+      "section": "05-composition-and-comparison",
+      "command": "cmp",
+      "title": "Compare files byte for byte",
+      "about": "cmp compares two files byte by byte. -s suppresses output so the exit status alone reports equality.",
+      "example": "cmp -s first.bin second.bin",
+      "example_output": "",
+      "breakdown": [
+        "-s selects silent mode.",
+        "Exit 0 means the byte sequences match."
+      ],
+      "task": "Silently verify that first.txt and second.txt contain identical bytes.",
+      "solution": "cmp -s first.txt second.txt",
+      "hints": [
+        "Use cmp silent mode."
+      ],
+      "files": {
+        "first.txt": "identical\n",
+        "second.txt": "identical\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Silent mode produced no stdout.",
+          "expected": "",
+          "normalize": "trim"
+        },
+        {
+          "type": "exit-code",
+          "description": "cmp confirmed byte equality.",
+          "expected": 0
+        }
+      ],
+      "completion": "cmp proves equality of the observed bytes, not that the files are safe, trusted, or correctly named."
+    },
+    {
+      "id": "linux-comm",
+      "order": 47,
+      "section": "05-composition-and-comparison",
+      "command": "comm",
+      "title": "Compare sorted sets of lines",
+      "about": "comm compares two sorted files in three columns: unique to first, unique to second, and common to both.",
+      "example": "comm -12 left.txt right.txt",
+      "example_output": "beta\n",
+      "breakdown": [
+        "-1 suppresses first-only lines.",
+        "-2 suppresses second-only lines.",
+        "Only common lines remain."
+      ],
+      "task": "Print only lines common to allowed.txt and observed.txt.",
+      "solution": "comm -12 allowed.txt observed.txt",
+      "hints": [
+        "Both inputs are already sorted; suppress columns 1 and 2."
+      ],
+      "files": {
+        "allowed.txt": "alpha\nbeta\ndelta\n",
+        "observed.txt": "beta\ndelta\ngamma\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Only common values were printed.",
+          "expected": "beta\ndelta",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "comm assumes sorted inputs under the same locale. Violating that precondition can silently mislead."
+    },
+    {
+      "id": "linux-join",
+      "order": 48,
+      "section": "05-composition-and-comparison",
+      "command": "join",
+      "title": "Join records by a key",
+      "about": "join combines lines from sorted files when a selected key matches. It is a text-file analogue of a relational join.",
+      "example": "join -t, users.csv roles.csv",
+      "example_output": "1,alice,analyst\n",
+      "breakdown": [
+        "-t, selects comma delimiter.",
+        "The first field is the default join key."
+      ],
+      "task": "Join users.csv and roles.csv by their first comma-delimited field.",
+      "solution": "join -t, users.csv roles.csv",
+      "hints": [
+        "Both files are sorted by field 1, so the default key works."
+      ],
+      "files": {
+        "users.csv": "1,alice\n2,bob\n3,carol\n",
+        "roles.csv": "1,analyst\n2,developer\n3,operator\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Every user was joined to a role.",
+          "expected": "1,alice,analyst\n2,bob,developer\n3,carol,operator",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "join expects sorted keys. Use a format-aware data tool when quoting, escaping, or complex joins matter."
+    },
+    {
+      "id": "linux-split",
+      "order": 49,
+      "section": "05-composition-and-comparison",
+      "command": "split",
+      "title": "Split a file into fixed-size chunks",
+      "about": "split divides input into output files by line count or byte size. Output names use a supplied prefix plus generated suffixes.",
+      "example": "split -l 2 events.txt chunk-",
+      "example_output": "",
+      "breakdown": [
+        "-l 2 places two lines in each part.",
+        "chunk- is the output prefix."
+      ],
+      "task": "Split events.txt into two-line files with prefix part-.",
+      "solution": "split -l 2 events.txt part-",
+      "hints": [
+        "Use -l 2 and provide an output prefix."
+      ],
+      "files": {
+        "events.txt": "one\ntwo\nthree\nfour\nfive\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "part-aa contains the first two events.",
+          "path": "part-aa",
+          "expected": "one\ntwo",
+          "normalize": "trim"
+        },
+        {
+          "type": "file-content",
+          "description": "part-ac contains the final event.",
+          "path": "part-ac",
+          "expected": "five",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Record the split rule and naming pattern so the parts can be reassembled and verified correctly."
+    },
+    {
+      "id": "linux-csplit",
+      "order": 50,
+      "section": "05-composition-and-comparison",
+      "command": "csplit",
+      "title": "Split at a content position",
+      "about": "csplit divides a file at line numbers or matching contexts. Unlike split, boundaries can follow content structure.",
+      "example": "csplit -s sections.txt 3",
+      "example_output": "",
+      "breakdown": [
+        "-s suppresses byte counts.",
+        "3 starts the second output at line 3."
+      ],
+      "task": "Split sections.txt before line 3 without printing byte counts.",
+      "solution": "csplit -s sections.txt 3",
+      "hints": [
+        "Use silent mode and the line number 3."
+      ],
+      "files": {
+        "sections.txt": "alpha-1\nalpha-2\nbeta-1\nbeta-2\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "xx00 contains the first section.",
+          "path": "xx00",
+          "expected": "alpha-1\nalpha-2",
+          "normalize": "trim"
+        },
+        {
+          "type": "file-content",
+          "description": "xx01 contains the second section.",
+          "path": "xx01",
+          "expected": "beta-1\nbeta-2",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "csplit boundaries are structural assumptions. Inspect the resulting parts before treating them as complete records."
+    },
+    {
+      "id": "linux-chmod",
+      "order": 51,
+      "section": "06-identity-and-permissions",
+      "command": "chmod",
+      "title": "Set private permission bits",
+      "about": "chmod changes POSIX mode bits. Numeric 600 grants owner read/write and no group or other permissions.",
+      "example": "chmod 600 private.txt",
+      "example_output": "",
+      "breakdown": [
+        "6 is owner read plus write.",
+        "Both zeros remove group and other mode permissions."
+      ],
+      "task": "Set secret.txt to mode 600.",
+      "solution": "chmod 600 secret.txt",
+      "hints": [
+        "Pass numeric mode 600 before the filename."
+      ],
+      "files": {
+        "secret.txt": "synthetic secret\n"
+      },
+      "checks": [
+        {
+          "type": "file-mode",
+          "description": "secret.txt has mode 600.",
+          "path": "secret.txt",
+          "expected": "600"
+        }
+      ],
+      "completion": "Mode bits are one layer. Ownership, ACLs, elevated users, and directory permissions also affect access."
+    },
+    {
+      "id": "linux-chown",
+      "order": 52,
+      "section": "06-identity-and-permissions",
+      "command": "chown",
+      "title": "Apply owner metadata by reference",
+      "about": "chown changes file ownership. --reference copies owner and group metadata from a known file without hard-coding an account name.",
+      "example": "chown --reference=reference.txt target.txt",
+      "example_output": "",
+      "breakdown": [
+        "reference.txt supplies ownership metadata.",
+        "target.txt receives it."
+      ],
+      "task": "Apply reference.txt ownership to target.txt.",
+      "solution": "chown --reference=reference.txt target.txt",
+      "hints": [
+        "Use GNU chown's --reference option."
+      ],
+      "files": {
+        "reference.txt": "owner source\n",
+        "target.txt": "target\n"
+      },
+      "checks": [
+        {
+          "type": "same-owner",
+          "description": "target.txt has the reference owner.",
+          "path": "target.txt",
+          "other_path": "reference.txt"
+        }
+      ],
+      "completion": "Changing ownership can require privilege when the requested owner differs. This rep remains within the current synthetic owner."
+    },
+    {
+      "id": "linux-chgrp",
+      "order": 53,
+      "section": "06-identity-and-permissions",
+      "command": "chgrp",
+      "title": "Apply group metadata by reference",
+      "about": "chgrp changes a file's group. --reference copies the group from another file and avoids embedding a local group name.",
+      "example": "chgrp --reference=reference.txt target.txt",
+      "example_output": "",
+      "breakdown": [
+        "The reference supplies group metadata.",
+        "The target group is updated."
+      ],
+      "task": "Apply reference.txt group ownership to target.txt.",
+      "solution": "chgrp --reference=reference.txt target.txt",
+      "hints": [
+        "Use the --reference option."
+      ],
+      "files": {
+        "reference.txt": "group source\n",
+        "target.txt": "target\n"
+      },
+      "checks": [
+        {
+          "type": "same-group",
+          "description": "target.txt has the reference group.",
+          "path": "target.txt",
+          "other_path": "reference.txt"
+        }
+      ],
+      "completion": "Group membership and directory inheritance determine whether a group assignment produces the intended effective access."
+    },
+    {
+      "id": "linux-umask",
+      "order": 54,
+      "section": "06-identity-and-permissions",
+      "command": "umask",
+      "title": "Control default creation permissions",
+      "about": "umask removes permission bits from newly created files and directories. It affects future creation in the current shell.",
+      "example": "umask 077 && touch private.txt",
+      "example_output": "",
+      "breakdown": [
+        "077 masks all group and other bits.",
+        "The following file is created with mode 600 under normal base permissions."
+      ],
+      "task": "Set umask 077 and create private.txt in the same shell command.",
+      "solution": "umask 077 && touch private.txt",
+      "hints": [
+        "Set the mask, then use && before touch."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "file-mode",
+          "description": "private.txt was created with mode 600.",
+          "path": "private.txt",
+          "expected": "600"
+        }
+      ],
+      "completion": "umask subtracts permissions from creation defaults; it does not add bits or retroactively change existing paths."
+    },
+    {
+      "id": "linux-id",
+      "order": 55,
+      "section": "06-identity-and-permissions",
+      "command": "id",
+      "title": "Inspect numeric identity context",
+      "about": "id reports user and group identity. -u emits only the effective numeric user ID.",
+      "example": "id -u",
+      "example_output": "1000\n",
+      "breakdown": [
+        "-u selects the user ID.",
+        "The result is numeric and environment-specific."
+      ],
+      "task": "Print only your effective numeric user ID.",
+      "solution": "id -u",
+      "hints": [
+        "Use id's user-only option."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-regex",
+          "description": "A numeric user ID was printed.",
+          "expected": "[0-9]+"
+        }
+      ],
+      "completion": "Names are labels resolved through identity databases. Authorization decisions ultimately use numeric IDs and groups."
+    },
+    {
+      "id": "linux-whoami",
+      "order": 56,
+      "section": "06-identity-and-permissions",
+      "command": "whoami",
+      "title": "Print the effective username",
+      "about": "whoami prints the name associated with the effective user ID. It is equivalent to id -un on common Linux systems.",
+      "example": "whoami",
+      "example_output": "learner\n",
+      "breakdown": [
+        "The effective identity is queried.",
+        "One username is printed."
+      ],
+      "task": "Print your effective username.",
+      "solution": "whoami",
+      "hints": [
+        "The topic command takes no argument."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-regex",
+          "description": "A nonempty username was printed.",
+          "expected": ".+"
+        }
+      ],
+      "completion": "whoami is a quick identity check. Use id for the complete user and group context."
+    },
+    {
+      "id": "linux-groups",
+      "order": 57,
+      "section": "06-identity-and-permissions",
+      "command": "groups",
+      "title": "List group memberships",
+      "about": "groups prints the group names associated with a user. With no argument it reports the current process identity context.",
+      "example": "groups",
+      "example_output": "learner sudo\n",
+      "breakdown": [
+        "No username means current identity.",
+        "One or more group names are printed."
+      ],
+      "task": "Print the group memberships active for your current identity.",
+      "solution": "groups",
+      "hints": [
+        "Run groups with no username."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-nonempty",
+          "description": "At least one group was printed."
+        }
+      ],
+      "completion": "A group list is context, not proof of access. Directory traversal, ACLs, and mode bits still determine effective filesystem access."
+    },
+    {
+      "id": "linux-getent",
+      "order": 58,
+      "section": "06-identity-and-permissions",
+      "command": "getent",
+      "title": "Query configured identity databases",
+      "about": "getent queries databases configured through the Name Service Switch, including local files and network identity sources.",
+      "example": "getent passwd root",
+      "example_output": "root:x:0:0:root:/root:/bin/bash\n",
+      "breakdown": [
+        "passwd names the database.",
+        "root is the lookup key."
+      ],
+      "task": "Query the passwd database for root and print only its username field.",
+      "solution": "getent passwd root | cut -d: -f1",
+      "hints": [
+        "Query passwd, then cut the first colon-delimited field."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The resolved username root was printed.",
+          "expected": "root",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "getent follows configured resolution policy. Reading /etc/passwd alone can miss directory-backed identities."
+    },
+    {
+      "id": "linux-users",
+      "order": 59,
+      "section": "06-identity-and-permissions",
+      "command": "users",
+      "title": "Inspect logged-in usernames",
+      "about": "users prints usernames recorded as currently logged in. Minimal containers and some VM sessions may have no utmp records, so empty output can be legitimate.",
+      "example": "users",
+      "example_output": "alice bob\n",
+      "breakdown": [
+        "Login records are read from the system session database.",
+        "Repeated names can represent multiple sessions."
+      ],
+      "task": "Run users and observe the current system's login-record result.",
+      "solution": "users",
+      "hints": [
+        "No arguments are required; empty output is possible in a container."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "exit-code",
+          "description": "The login-record query completed.",
+          "expected": 0
+        }
+      ],
+      "completion": "Empty users output does not prove nobody is active; session accounting depends on how the environment records logins."
+    },
+    {
+      "id": "linux-who",
+      "order": 60,
+      "section": "06-identity-and-permissions",
+      "command": "who",
+      "title": "Inspect login session records",
+      "about": "who prints detailed login records such as user, terminal, and login time. Container environments often have no such records.",
+      "example": "who",
+      "example_output": "alice pts/0 2026-08-03 10:00\n",
+      "breakdown": [
+        "The system session database is queried.",
+        "Each record describes a logged-in session."
+      ],
+      "task": "Run who and observe the login records available in this environment.",
+      "solution": "who",
+      "hints": [
+        "Run the command without options; no records is a valid observation."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "exit-code",
+          "description": "The session-record query completed.",
+          "expected": 0
+        }
+      ],
+      "completion": "Session accounting is one evidence source. Processes, remote access logs, and orchestration context may tell a different part of the story."
+    },
+    {
+      "id": "linux-ps",
+      "order": 61,
+      "section": "07-processes-and-execution",
+      "command": "ps",
+      "title": "Take a process snapshot",
+      "about": "ps reports a point-in-time process snapshot. Explicit columns make the output easier to reason about than relying on defaults.",
+      "example": "ps -o pid=,comm= -p 1",
+      "example_output": "1 systemd\n",
+      "breakdown": [
+        "-p 1 selects PID 1.",
+        "-o chooses PID and command-name columns.",
+        "= removes headers."
+      ],
+      "task": "Print PID and command name for process 1 without headers.",
+      "solution": "ps -o pid=,comm= -p 1",
+      "hints": [
+        "Use -p 1 and an explicit -o format."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-nonempty",
+          "description": "Process 1 information was printed."
+        },
+        {
+          "type": "exit-code",
+          "description": "ps completed successfully.",
+          "expected": 0
+        }
+      ],
+      "completion": "ps is a snapshot. Processes can exit, fork, or change state immediately after observation."
+    },
+    {
+      "id": "linux-top",
+      "order": 62,
+      "section": "07-processes-and-execution",
+      "command": "top",
+      "title": "Capture a batch process overview",
+      "about": "top is normally interactive. -b enables batch output and -n 1 captures one refresh suitable for a file or pipeline.",
+      "example": "top -b -n 1 | head -n 5",
+      "example_output": "top - 10:00:00 up 1 day\nTasks: 100 total\n",
+      "breakdown": [
+        "-b disables interactive control.",
+        "-n 1 limits collection to one sample.",
+        "head bounds this rep."
+      ],
+      "task": "Capture the first five lines of one batch-mode top sample.",
+      "solution": "top -b -n 1 | head -n 5",
+      "hints": [
+        "Use batch mode, one iteration, and head."
+      ],
+      "files": {},
+      "packages": [
+        "procps"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The top summary was captured.",
+          "expected": "top -"
+        }
+      ],
+      "completion": "One top sample is not a performance conclusion. Compare multiple observations and the workload context."
+    },
+    {
+      "id": "linux-pgrep",
+      "order": 63,
+      "section": "07-processes-and-execution",
+      "command": "pgrep",
+      "title": "Find processes by name or command line",
+      "about": "pgrep searches the process table. -a prints matching PIDs with command lines and -f matches the full command line.",
+      "example": "pgrep -a -f ssh",
+      "example_output": "1234 ssh-agent -s\n",
+      "breakdown": [
+        "-f broadens matching to full command lines.",
+        "-a preserves visible context for each PID."
+      ],
+      "task": "Find the running Hacker CLI Gym process by matching its full command line and print its PID plus command line.",
+      "solution": "pgrep -a -f hacker-cli-gym",
+      "hints": [
+        "Combine -a and -f with the pattern hacker-cli-gym."
+      ],
+      "files": {},
+      "packages": [
+        "procps"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "At least one Hacker CLI Gym process context was printed.",
+          "expected": "hacker-cli-gym"
+        }
+      ],
+      "completion": "A name match is a candidate set, not authorization to signal every result. Verify PID, owner, arguments, and role first."
+    },
+    {
+      "id": "linux-kill",
+      "order": 64,
+      "section": "07-processes-and-execution",
+      "command": "kill",
+      "title": "Resolve a signal name safely",
+      "about": "kill sends signals to processes, while kill -l can list or translate signal names without signaling anything. This rep uses the safe translation form.",
+      "example": "kill -l TERM",
+      "example_output": "15\n",
+      "breakdown": [
+        "-l requests signal translation.",
+        "TERM maps to the standard termination signal number."
+      ],
+      "task": "Translate the signal name TERM to its number without signaling a process.",
+      "solution": "kill -l TERM",
+      "hints": [
+        "Use kill's list/translate option."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "TERM was translated to signal 15.",
+          "expected": "15",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Prefer TERM before KILL so a process can clean up. Confirm the exact PID and ownership before signaling."
+    },
+    {
+      "id": "linux-nohup",
+      "order": 65,
+      "section": "07-processes-and-execution",
+      "command": "nohup",
+      "title": "Run independently of terminal hangup",
+      "about": "nohup changes hangup-signal handling for a command. Redirect output explicitly so its destination is predictable.",
+      "example": "nohup printf 'done\\n' > result.txt",
+      "example_output": "",
+      "breakdown": [
+        "printf runs with hangup ignored.",
+        "> sends stdout to a declared file."
+      ],
+      "task": "Use nohup to run printf and write ready to nohup-result.txt.",
+      "solution": "nohup printf 'ready\\n' > nohup-result.txt",
+      "hints": [
+        "Put printf after nohup and redirect stdout."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "nohup-result.txt contains ready.",
+          "path": "nohup-result.txt",
+          "expected": "ready",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "nohup is not a service manager. It provides limited detachment, not supervision, restart policy, or structured logs."
+    },
+    {
+      "id": "linux-nice",
+      "order": 66,
+      "section": "07-processes-and-execution",
+      "command": "nice",
+      "title": "Start with adjusted scheduling priority",
+      "about": "nice starts a command with an adjusted niceness value. Higher niceness generally means lower CPU scheduling priority.",
+      "example": "nice -n 5 true",
+      "example_output": "",
+      "breakdown": [
+        "-n 5 requests niceness 5.",
+        "true exits successfully without work."
+      ],
+      "task": "Run true with niceness 5.",
+      "solution": "nice -n 5 true",
+      "hints": [
+        "Use nice -n 5 followed by true."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "exit-code",
+          "description": "The niced command completed successfully.",
+          "expected": 0
+        }
+      ],
+      "completion": "Niceness influences CPU scheduling; it is not a hard resource limit or a guarantee of runtime share."
+    },
+    {
+      "id": "linux-timeout",
+      "order": 67,
+      "section": "07-processes-and-execution",
+      "command": "timeout",
+      "title": "Bound command runtime",
+      "about": "timeout runs a command with a deadline and sends a signal if the duration is exceeded. Its exit status distinguishes a timeout from ordinary success.",
+      "example": "timeout 1 sleep 5",
+      "example_output": "",
+      "breakdown": [
+        "1 is a one-second duration.",
+        "sleep requests five seconds.",
+        "Exit 124 reports timeout expiration."
+      ],
+      "task": "Limit sleep 5 to one second.",
+      "solution": "timeout 1 sleep 5",
+      "hints": [
+        "Put the one-second limit before the sleep command."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "exit-code",
+          "description": "timeout reported deadline expiration.",
+          "expected": 124
+        }
+      ],
+      "completion": "A timeout bounds waiting; it does not prove the child and every descendant cleaned up all external state."
+    },
+    {
+      "id": "linux-sleep",
+      "order": 68,
+      "section": "07-processes-and-execution",
+      "command": "sleep",
+      "title": "Pause for a bounded duration",
+      "about": "sleep delays for a specified duration. Fractional seconds are supported by GNU sleep.",
+      "example": "sleep 0.2",
+      "example_output": "",
+      "breakdown": [
+        "0.2 requests a short fractional-second pause.",
+        "Successful sleep produces no output."
+      ],
+      "task": "Pause for one tenth of a second.",
+      "solution": "sleep 0.1",
+      "hints": [
+        "Use a fractional duration of 0.1."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "exit-code",
+          "description": "The short sleep completed.",
+          "expected": 0
+        }
+      ],
+      "completion": "Sleep-based synchronization is fragile. Prefer an observable readiness condition when coordinating real work."
+    },
+    {
+      "id": "linux-time",
+      "order": 69,
+      "section": "07-processes-and-execution",
+      "command": "time",
+      "title": "Measure one command execution",
+      "about": "Bash time reports elapsed, user CPU, and system CPU time for a pipeline. -p uses a portable output shape.",
+      "example": "time -p sleep 0.1",
+      "example_output": "real 0.10\nuser 0.00\nsys 0.00\n",
+      "breakdown": [
+        "-p selects a simple labeled format.",
+        "Timing data is written to stderr by the shell."
+      ],
+      "task": "Measure sleep 0.1 with portable time output.",
+      "solution": "time -p sleep 0.1",
+      "hints": [
+        "Use Bash time -p before sleep."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stderr-contains",
+          "description": "Portable timing output includes real time.",
+          "expected": "real"
+        },
+        {
+          "type": "exit-code",
+          "description": "The measured command completed.",
+          "expected": 0
+        }
+      ],
+      "completion": "One timing sample includes scheduler and system noise. Repeat controlled measurements before drawing performance conclusions."
+    },
+    {
+      "id": "linux-seq",
+      "order": 70,
+      "section": "07-processes-and-execution",
+      "command": "seq",
+      "title": "Generate a numeric sequence",
+      "about": "seq prints numeric sequences with optional start, increment, and end values. It is useful for bounded loops and generated test input.",
+      "example": "seq 3",
+      "example_output": "1\n2\n3\n",
+      "breakdown": [
+        "One argument is the final value.",
+        "The default start and increment are both one."
+      ],
+      "task": "Print integers 3 through 7, inclusive.",
+      "solution": "seq 3 7",
+      "hints": [
+        "Provide start 3 and end 7."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The inclusive 3-through-7 sequence was printed.",
+          "expected": "3\n4\n5\n6\n7",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Keep generated ranges bounded. An accidental huge sequence can consume time, storage, or downstream resources."
+    },
+    {
+      "id": "linux-uname",
+      "order": 71,
+      "section": "08-system-and-storage",
+      "command": "uname",
+      "title": "Identify the kernel family",
+      "about": "uname reports kernel and machine facts. -s selects only the kernel name.",
+      "example": "uname -s",
+      "example_output": "Linux\n",
+      "breakdown": [
+        "-s requests the kernel name.",
+        "The result is Linux on the supported platform."
+      ],
+      "task": "Print only the kernel name.",
+      "solution": "uname -s",
+      "hints": [
+        "Use the kernel-name option."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The Linux kernel name was printed.",
+          "expected": "Linux",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Kernel name, distribution, release, and architecture are different facts. Ask for each explicitly."
+    },
+    {
+      "id": "linux-hostname",
+      "order": 72,
+      "section": "08-system-and-storage",
+      "command": "hostname",
+      "title": "Read the current host name",
+      "about": "hostname prints or, with privilege and options, can change the system host name. This rep performs a read only.",
+      "example": "hostname",
+      "example_output": "lab-vm\n",
+      "breakdown": [
+        "No option requests the current configured hostname.",
+        "The value depends on the environment."
+      ],
+      "task": "Print the current hostname.",
+      "solution": "hostname",
+      "hints": [
+        "Run hostname without options."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-nonempty",
+          "description": "A hostname was printed."
+        }
+      ],
+      "completion": "A hostname is an administrative label, not proof of identity, DNS registration, or network reachability."
+    },
+    {
+      "id": "linux-uptime",
+      "order": 73,
+      "section": "08-system-and-storage",
+      "command": "uptime",
+      "title": "Read uptime and load averages",
+      "about": "uptime reports current time, time since boot, user count, and load averages. Load average is not CPU percentage.",
+      "example": "uptime",
+      "example_output": "10:00:00 up 2 days, load average: 0.10, 0.20, 0.15\n",
+      "breakdown": [
+        "Uptime describes time since boot.",
+        "The three loads cover different averaging windows."
+      ],
+      "task": "Print the current system uptime summary.",
+      "solution": "uptime",
+      "hints": [
+        "No option is required."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-nonempty",
+          "description": "An uptime summary was printed."
+        }
+      ],
+      "completion": "Interpret load relative to runnable work, CPU count, and I/O conditions; it is not a standalone health score."
+    },
+    {
+      "id": "linux-date",
+      "order": 74,
+      "section": "08-system-and-storage",
+      "command": "date",
+      "title": "Format a fixed timestamp",
+      "about": "date displays and formats time. GNU date -d can parse an explicit input, making transformations deterministic.",
+      "example": "date -u -d @0 +%F",
+      "example_output": "1970-01-01\n",
+      "breakdown": [
+        "-u selects UTC.",
+        "-d @0 uses Unix epoch zero.",
+        "+%F formats YYYY-MM-DD."
+      ],
+      "task": "Print Unix epoch zero as a UTC YYYY-MM-DD date.",
+      "solution": "date -u -d @0 +%F",
+      "hints": [
+        "Use UTC, input @0, and format %F."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "Epoch zero was formatted correctly.",
+          "expected": "1970-01-01",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Always state timezone and input interpretation when timestamps become evidence or cross-system data."
+    },
+    {
+      "id": "linux-cal",
+      "order": 75,
+      "section": "08-system-and-storage",
+      "command": "cal",
+      "title": "Print a calendar",
+      "about": "cal prints calendars for a month or year. It is commonly provided by the ncal package rather than coreutils.",
+      "example": "cal 1 2000",
+      "example_output": "January 2000\n",
+      "breakdown": [
+        "1 selects January.",
+        "2000 is the year."
+      ],
+      "task": "Print the calendar for January 2000.",
+      "solution": "cal 1 2000",
+      "hints": [
+        "Provide month number 1 and year 2000."
+      ],
+      "files": {},
+      "packages": [
+        "ncal"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The January 2000 calendar was printed.",
+          "expected": "2000"
+        }
+      ],
+      "completion": "Calendar layout and week conventions can be locale-dependent. Do not parse the human display as a data format."
+    },
+    {
+      "id": "linux-env",
+      "order": 76,
+      "section": "08-system-and-storage",
+      "command": "env",
+      "title": "Run with a controlled environment",
+      "about": "env prints variables or runs a command with selected environment assignments. -i starts from an empty environment.",
+      "example": "env -i DEMO=ready printenv DEMO",
+      "example_output": "ready\n",
+      "breakdown": [
+        "-i discards inherited variables.",
+        "DEMO=ready adds one variable.",
+        "printenv reads it in the child."
+      ],
+      "task": "Run printenv with an otherwise empty environment containing MODE=practice, and print MODE.",
+      "solution": "env -i MODE=practice printenv MODE",
+      "hints": [
+        "Use env -i, add the assignment, then run printenv."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The controlled MODE value was printed.",
+          "expected": "practice",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Environment variables influence child processes. Record relevant variables when reproducing context-dependent behavior."
+    },
+    {
+      "id": "linux-printenv",
+      "order": 77,
+      "section": "08-system-and-storage",
+      "command": "printenv",
+      "title": "Read one environment variable",
+      "about": "printenv prints environment variables visible to the process. Naming one variable avoids dumping unrelated or sensitive values.",
+      "example": "printenv HOME",
+      "example_output": "/home/learner\n",
+      "breakdown": [
+        "HOME is the requested variable name.",
+        "Only its current value is printed."
+      ],
+      "task": "Print only the HOME value supplied to this disposable rep.",
+      "solution": "printenv HOME",
+      "hints": [
+        "Name HOME explicitly instead of dumping the entire environment."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The isolated HOME value was printed.",
+          "expected": "{{workspace}}",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Environment dumps can contain secrets. Query only the variable needed and handle output accordingly."
+    },
+    {
+      "id": "linux-df",
+      "order": 78,
+      "section": "08-system-and-storage",
+      "command": "df",
+      "title": "Inspect filesystem capacity",
+      "about": "df reports filesystem-level space. -P requests a predictable POSIX-style row layout for simple inspection.",
+      "example": "df -P .",
+      "example_output": "Filesystem 1024-blocks Used Available Capacity Mounted on\n",
+      "breakdown": [
+        ". selects the filesystem containing the current directory.",
+        "-P uses one row per filesystem."
+      ],
+      "task": "Print the POSIX-style filesystem capacity row for the current workspace.",
+      "solution": "df -P .",
+      "hints": [
+        "Use -P and select the current directory."
+      ],
+      "files": {},
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "A filesystem header was printed.",
+          "expected": "Filesystem"
+        },
+        {
+          "type": "exit-code",
+          "description": "df completed successfully.",
+          "expected": 0
+        }
+      ],
+      "completion": "df reports filesystem capacity; du reports space attributed to paths. They answer different questions."
+    },
+    {
+      "id": "linux-du",
+      "order": 79,
+      "section": "08-system-and-storage",
+      "command": "du",
+      "title": "Measure path disk usage",
+      "about": "du walks paths and reports allocated disk usage. -s summarizes and -k reports KiB units.",
+      "example": "du -sk data",
+      "example_output": "4 data\n",
+      "breakdown": [
+        "-s emits one summary.",
+        "-k selects KiB units."
+      ],
+      "task": "Print one KiB summary for the data directory.",
+      "solution": "du -sk data",
+      "hints": [
+        "Combine summary and KiB options."
+      ],
+      "files": {
+        "data/a.txt": "alpha\n",
+        "data/b.txt": "beta\n"
+      },
+      "checks": [
+        {
+          "type": "stdout-regex",
+          "description": "A numeric KiB count and data label were printed.",
+          "expected": "[0-9]+\\s+data"
+        }
+      ],
+      "completion": "Allocated size can differ from apparent byte size because of blocks, sparse files, compression, and deduplication."
+    },
+    {
+      "id": "linux-free",
+      "order": 80,
+      "section": "08-system-and-storage",
+      "command": "free",
+      "title": "Inspect memory accounting",
+      "about": "free summarizes memory and swap from kernel accounting. -h selects human-readable units.",
+      "example": "free -h",
+      "example_output": "Mem: 15Gi 4Gi 3Gi 1Gi 8Gi 10Gi\n",
+      "breakdown": [
+        "-h scales units for people.",
+        "available is usually more useful than treating cache as simply used."
+      ],
+      "task": "Print human-readable memory accounting.",
+      "solution": "free -h",
+      "hints": [
+        "Use the human-readable option."
+      ],
+      "files": {},
+      "packages": [
+        "procps"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The memory summary includes a Mem row.",
+          "expected": "Mem:"
+        }
+      ],
+      "completion": "Linux uses memory for cache and can reclaim it. Interpret available memory and workload behavior, not one used number alone."
+    },
+    {
+      "id": "linux-tar",
+      "order": 81,
+      "section": "09-archives-and-integrity",
+      "command": "tar",
+      "title": "Create an archive",
+      "about": "tar stores multiple paths and metadata in one archive. -c creates, -f names the archive, and -z adds gzip compression.",
+      "example": "tar -czf bundle.tar.gz docs",
+      "example_output": "",
+      "breakdown": [
+        "-c creates an archive.",
+        "-z compresses with gzip.",
+        "-f consumes the archive filename."
+      ],
+      "task": "Create evidence.tar.gz containing the evidence directory.",
+      "solution": "tar -czf evidence.tar.gz evidence",
+      "hints": [
+        "Use create, gzip, and file options together."
+      ],
+      "files": {
+        "evidence/notes.txt": "verified\n",
+        "evidence/hash.txt": "synthetic\n"
+      },
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "evidence.tar.gz was created.",
+          "path": "evidence.tar.gz",
+          "kind": "file"
+        }
+      ],
+      "completion": "An archive groups paths; compression reduces some data. List and test an archive before deleting sources."
+    },
+    {
+      "id": "linux-gzip",
+      "order": 82,
+      "section": "09-archives-and-integrity",
+      "command": "gzip",
+      "title": "Compress one file with gzip",
+      "about": "gzip compresses individual files and normally replaces the source with a .gz file.",
+      "example": "gzip report.txt",
+      "example_output": "",
+      "breakdown": [
+        "report.txt is compressed.",
+        "The default result is report.txt.gz and the source name is removed."
+      ],
+      "task": "Compress report.txt with gzip.",
+      "solution": "gzip report.txt",
+      "hints": [
+        "Pass the source filename directly to gzip."
+      ],
+      "files": {
+        "report.txt": "repeat repeat repeat repeat\n"
+      },
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "report.txt.gz exists.",
+          "path": "report.txt.gz",
+          "kind": "file"
+        },
+        {
+          "type": "path-not-exists",
+          "description": "The default gzip operation removed report.txt.",
+          "path": "report.txt"
+        }
+      ],
+      "completion": "Use gzip -k when the original file must remain. Compression is not encryption or integrity authentication."
+    },
+    {
+      "id": "linux-gunzip",
+      "order": 83,
+      "section": "09-archives-and-integrity",
+      "command": "gunzip",
+      "title": "Restore gzip-compressed content",
+      "about": "gunzip expands .gz data. This rep creates a synthetic compressed input, then restores it in the disposable workspace.",
+      "example": "gzip note.txt && gunzip note.txt.gz",
+      "example_output": "",
+      "breakdown": [
+        "gzip creates the test input.",
+        "gunzip restores note.txt after successful compression."
+      ],
+      "task": "Compress data.txt and then restore it with gunzip.",
+      "solution": "gzip data.txt && gunzip data.txt.gz",
+      "hints": [
+        "Create data.txt.gz first, then run gunzip only after success."
+      ],
+      "files": {
+        "data.txt": "restored gzip data\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "data.txt was restored exactly.",
+          "path": "data.txt",
+          "expected": "restored gzip data",
+          "normalize": "trim"
+        },
+        {
+          "type": "path-not-exists",
+          "description": "The default gunzip operation removed data.txt.gz.",
+          "path": "data.txt.gz"
+        }
+      ],
+      "completion": "Decompression can overwrite or create paths. Inspect archive provenance and destination boundaries before extracting untrusted data."
+    },
+    {
+      "id": "linux-bzip2",
+      "order": 84,
+      "section": "09-archives-and-integrity",
+      "command": "bzip2",
+      "title": "Compress with bzip2",
+      "about": "bzip2 compresses files using the Burrows-Wheeler family of transforms and normally replaces the source with .bz2.",
+      "example": "bzip2 report.txt",
+      "example_output": "",
+      "breakdown": [
+        "The source is compressed.",
+        "report.txt.bz2 becomes the default output."
+      ],
+      "task": "Compress report.txt with bzip2.",
+      "solution": "bzip2 report.txt",
+      "hints": [
+        "Pass the source directly to bzip2."
+      ],
+      "files": {
+        "report.txt": "repeat repeat repeat repeat\n"
+      },
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "report.txt.bz2 exists.",
+          "path": "report.txt.bz2",
+          "kind": "file"
+        },
+        {
+          "type": "path-not-exists",
+          "description": "The source name was replaced.",
+          "path": "report.txt"
+        }
+      ],
+      "completion": "Compression formats trade speed, size, and compatibility. Choose based on the consumer and verify the result."
+    },
+    {
+      "id": "linux-bunzip2",
+      "order": 85,
+      "section": "09-archives-and-integrity",
+      "command": "bunzip2",
+      "title": "Restore bzip2-compressed content",
+      "about": "bunzip2 expands .bz2 files. The default removes the compressed input after successful restoration.",
+      "example": "bzip2 note.txt && bunzip2 note.txt.bz2",
+      "example_output": "",
+      "breakdown": [
+        "A synthetic .bz2 input is created.",
+        "bunzip2 restores the original path."
+      ],
+      "task": "Compress data.txt and restore it with bunzip2.",
+      "solution": "bzip2 data.txt && bunzip2 data.txt.bz2",
+      "hints": [
+        "Create the .bz2 input before invoking bunzip2."
+      ],
+      "files": {
+        "data.txt": "restored bzip2 data\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "data.txt was restored.",
+          "path": "data.txt",
+          "expected": "restored bzip2 data",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Test restoration before treating a compressed file as a sufficient backup."
+    },
+    {
+      "id": "linux-xz",
+      "order": 86,
+      "section": "09-archives-and-integrity",
+      "command": "xz",
+      "title": "Compress with xz",
+      "about": "xz compresses files using the LZMA2 format and normally replaces the source with .xz.",
+      "example": "xz report.txt",
+      "example_output": "",
+      "breakdown": [
+        "The file is compressed.",
+        "The default result is report.txt.xz."
+      ],
+      "task": "Compress report.txt with xz.",
+      "solution": "xz report.txt",
+      "hints": [
+        "Pass the source filename to xz."
+      ],
+      "files": {
+        "report.txt": "repeat repeat repeat repeat\n"
+      },
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "report.txt.xz exists.",
+          "path": "report.txt.xz",
+          "kind": "file"
+        },
+        {
+          "type": "path-not-exists",
+          "description": "The source name was replaced.",
+          "path": "report.txt"
+        }
+      ],
+      "completion": "xz often favors compression ratio over speed. The best choice depends on data, time, memory, and compatibility."
+    },
+    {
+      "id": "linux-unxz",
+      "order": 87,
+      "section": "09-archives-and-integrity",
+      "command": "unxz",
+      "title": "Restore xz-compressed content",
+      "about": "unxz expands .xz files and normally removes the compressed input after success.",
+      "example": "xz note.txt && unxz note.txt.xz",
+      "example_output": "",
+      "breakdown": [
+        "xz creates a synthetic input.",
+        "unxz restores the original path."
+      ],
+      "task": "Compress data.txt and restore it with unxz.",
+      "solution": "xz data.txt && unxz data.txt.xz",
+      "hints": [
+        "Create the .xz input first, then restore it."
+      ],
+      "files": {
+        "data.txt": "restored xz data\n"
+      },
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "data.txt was restored.",
+          "path": "data.txt",
+          "expected": "restored xz data",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Successful decompression is an observable check; add a trusted digest when exact integrity matters."
+    },
+    {
+      "id": "linux-zip",
+      "order": 88,
+      "section": "09-archives-and-integrity",
+      "command": "zip",
+      "title": "Create a ZIP archive",
+      "about": "zip creates a broadly compatible archive that can contain multiple files. -q suppresses progress noise in this rep.",
+      "example": "zip -q bundle.zip one.txt two.txt",
+      "example_output": "",
+      "breakdown": [
+        "bundle.zip is the archive path.",
+        "The two source files remain in place."
+      ],
+      "task": "Create bundle.zip containing one.txt and two.txt.",
+      "solution": "zip -q bundle.zip one.txt two.txt",
+      "hints": [
+        "Name the archive before the source files."
+      ],
+      "files": {
+        "one.txt": "one\n",
+        "two.txt": "two\n"
+      },
+      "packages": [
+        "zip"
+      ],
+      "checks": [
+        {
+          "type": "path-exists",
+          "description": "bundle.zip was created.",
+          "path": "bundle.zip",
+          "kind": "file"
+        },
+        {
+          "type": "file-content",
+          "description": "one.txt remains.",
+          "path": "one.txt",
+          "expected": "one",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "ZIP paths can overwrite files when extracted. Inspect names and extract untrusted archives into a disposable directory."
+    },
+    {
+      "id": "linux-unzip",
+      "order": 89,
+      "section": "09-archives-and-integrity",
+      "command": "unzip",
+      "title": "Extract a ZIP archive",
+      "about": "unzip lists or extracts ZIP archives. This rep creates a synthetic archive, removes the source, and restores it in disposable state.",
+      "example": "zip -q bundle.zip note.txt && rm note.txt && unzip -q bundle.zip",
+      "example_output": "",
+      "breakdown": [
+        "A local archive is created.",
+        "The original is removed.",
+        "unzip restores it after both earlier steps succeed."
+      ],
+      "task": "Archive note.txt, remove the original, and restore it with unzip.",
+      "solution": "zip -q bundle.zip note.txt && rm note.txt && unzip -q bundle.zip",
+      "hints": [
+        "Chain zip, rm, and unzip with &&."
+      ],
+      "files": {
+        "note.txt": "restored from zip\n"
+      },
+      "packages": [
+        "zip",
+        "unzip"
+      ],
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "note.txt was restored from the archive.",
+          "path": "note.txt",
+          "expected": "restored from zip",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Use unzip -l to inspect names first and extract unknown archives inside a controlled destination."
+    },
+    {
+      "id": "linux-sha256sum",
+      "order": 90,
+      "section": "09-archives-and-integrity",
+      "command": "sha256sum",
+      "title": "Calculate an exact SHA-256 digest",
+      "about": "sha256sum hashes exact file bytes. A digest supports equality and integrity comparisons when the expected value is trusted.",
+      "example": "sha256sum artifact.txt",
+      "example_output": "ab1881c8e3c4f2a645b0e9838c61f98b88dca68b27eff9c348676b8281ac43fc  artifact.txt\n",
+      "breakdown": [
+        "The file bytes are hashed.",
+        "The digest and filename are printed."
+      ],
+      "task": "Calculate the SHA-256 digest of artifact.txt.",
+      "solution": "sha256sum artifact.txt",
+      "hints": [
+        "Pass the filename directly to sha256sum."
+      ],
+      "files": {
+        "artifact.txt": "hello linux\n"
+      },
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The exact digest and filename were printed.",
+          "expected": "ab1881c8e3c4f2a645b0e9838c61f98b88dca68b27eff9c348676b8281ac43fc  artifact.txt",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "A hash says nothing about authorship or safety unless the expected digest comes from a trusted channel."
+    },
+    {
+      "id": "linux-ip",
+      "order": 91,
+      "section": "10-networking-and-services",
+      "command": "ip",
+      "title": "Inspect network interfaces",
+      "about": "ip is the modern Linux interface for addresses, links, routes, and neighbors. -brief gives a compact human-readable summary.",
+      "example": "ip -brief address",
+      "example_output": "lo UNKNOWN 127.0.0.1/8 ::1/128\n",
+      "breakdown": [
+        "-brief reduces output.",
+        "address selects interface addresses."
+      ],
+      "task": "Print a brief summary of interface addresses.",
+      "solution": "ip -brief address",
+      "hints": [
+        "Use ip brief mode with the address object."
+      ],
+      "files": {},
+      "packages": [
+        "iproute2"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The loopback interface appears in the address summary.",
+          "expected": "lo"
+        }
+      ],
+      "completion": "An assigned address does not prove routing, DNS, firewall permission, or application reachability."
+    },
+    {
+      "id": "linux-ss",
+      "order": 92,
+      "section": "10-networking-and-services",
+      "command": "ss",
+      "title": "Inspect listening TCP sockets",
+      "about": "ss reports socket state from the kernel. -l selects listening sockets, -n avoids name resolution, and -t selects TCP.",
+      "example": "ss -lnt",
+      "example_output": "State Recv-Q Send-Q Local Address:Port Peer Address:Port\n",
+      "breakdown": [
+        "-l keeps listeners.",
+        "-n preserves numeric addresses and ports.",
+        "-t selects TCP."
+      ],
+      "task": "Print listening TCP sockets with numeric addresses and ports.",
+      "solution": "ss -lnt",
+      "hints": [
+        "Combine listener, numeric, and TCP options."
+      ],
+      "files": {},
+      "packages": [
+        "iproute2"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The socket table header was printed.",
+          "expected": "State"
+        }
+      ],
+      "completion": "A listener proves a local socket state, not that a remote client can reach or successfully use the service."
+    },
+    {
+      "id": "linux-ping",
+      "order": 93,
+      "section": "10-networking-and-services",
+      "command": "ping",
+      "title": "Test local ICMP echo",
+      "about": "ping sends ICMP echo requests and measures responses. This rep targets loopback only, requiring no external network.",
+      "example": "ping -c 1 127.0.0.1",
+      "example_output": "1 packets transmitted, 1 received\n",
+      "breakdown": [
+        "-c 1 sends one request.",
+        "127.0.0.1 remains inside the local host."
+      ],
+      "task": "Send one ICMP echo request to IPv4 loopback.",
+      "solution": "ping -c 1 127.0.0.1",
+      "hints": [
+        "Use count 1 and target 127.0.0.1."
+      ],
+      "files": {},
+      "packages": [
+        "iputils-ping"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "One response was received from loopback.",
+          "expected": "1 received"
+        },
+        {
+          "type": "exit-code",
+          "description": "The loopback ping succeeded.",
+          "expected": 0
+        }
+      ],
+      "completion": "Ping success proves ICMP echo for one target and moment. Ping failure does not identify the failed network layer by itself."
+    },
+    {
+      "id": "linux-curl",
+      "order": 94,
+      "section": "10-networking-and-services",
+      "command": "curl",
+      "title": "Read a local URL",
+      "about": "curl transfers data using URL schemes. This rep uses a file URL inside the disposable workspace, so no network request leaves the machine.",
+      "example": "curl -s file://$PWD/message.txt",
+      "example_output": "local transfer\n",
+      "breakdown": [
+        "-s suppresses progress output.",
+        "file:// reads a local path rather than making a network request."
+      ],
+      "task": "Use curl silently to print message.txt through a file URL rooted at $PWD.",
+      "solution": "curl -s file://$PWD/message.txt",
+      "hints": [
+        "Use the file:// scheme and the PWD environment variable."
+      ],
+      "files": {
+        "message.txt": "local curl transfer\n"
+      },
+      "packages": [
+        "curl"
+      ],
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The local message was transferred.",
+          "expected": "local curl transfer",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "For HTTP work, record method, URL, status, headers, and body deliberately. Silent mode can hide useful diagnostics."
+    },
+    {
+      "id": "linux-wget",
+      "order": 95,
+      "section": "10-networking-and-services",
+      "command": "wget",
+      "title": "Inspect the installed wget version",
+      "about": "wget is a noninteractive network downloader. To keep this core rep offline, it inspects the local version rather than contacting a remote host.",
+      "example": "wget --version | head -n 1",
+      "example_output": "GNU Wget 1.21 built on linux-gnu.\n",
+      "breakdown": [
+        "--version reads local program metadata.",
+        "head keeps one identifying line."
+      ],
+      "task": "Print only the first line of wget version information.",
+      "solution": "wget --version | head -n 1",
+      "hints": [
+        "Request version output and bound it with head."
+      ],
+      "files": {},
+      "packages": [
+        "wget"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "The GNU Wget version line was printed.",
+          "expected": "Wget"
+        }
+      ],
+      "completion": "Before downloading, decide the destination, overwrite behavior, redirects, trust source, and integrity check."
+    },
+    {
+      "id": "linux-ssh",
+      "order": 96,
+      "section": "10-networking-and-services",
+      "command": "ssh",
+      "title": "Inspect effective SSH client configuration",
+      "about": "ssh -G prints the client configuration that would apply to a host without making a connection.",
+      "example": "ssh -G example.invalid | grep '^port '",
+      "example_output": "port 22\n",
+      "breakdown": [
+        "-G evaluates configuration only.",
+        "grep selects the effective port line.",
+        "No SSH connection is attempted."
+      ],
+      "task": "Print the effective SSH port for host example.invalid without connecting.",
+      "solution": "ssh -G example.invalid | grep '^port '",
+      "hints": [
+        "Use ssh configuration mode -G, then select the port line."
+      ],
+      "files": {},
+      "packages": [
+        "openssh-client"
+      ],
+      "checks": [
+        {
+          "type": "stdout",
+          "description": "The effective default SSH port was printed.",
+          "expected": "port 22",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "ssh -G is excellent for debugging config precedence. A resolved configuration does not prove network reachability or authentication."
+    },
+    {
+      "id": "linux-scp",
+      "order": 97,
+      "section": "10-networking-and-services",
+      "command": "scp",
+      "title": "Use scp's local copy form",
+      "about": "scp copies files using SSH when a path includes a remote host. With two local paths, it performs a local copy, which keeps this rep offline.",
+      "example": "scp source.txt copied.txt",
+      "example_output": "",
+      "breakdown": [
+        "Neither path includes host: syntax.",
+        "The data stays inside the disposable workspace."
+      ],
+      "task": "Copy artifact.txt to staged.txt using scp without a remote host.",
+      "solution": "scp artifact.txt staged.txt",
+      "hints": [
+        "Use two plain local paths; do not add a colon or host."
+      ],
+      "files": {
+        "artifact.txt": "local scp practice\n"
+      },
+      "packages": [
+        "openssh-client"
+      ],
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "staged.txt contains the artifact.",
+          "path": "staged.txt",
+          "expected": "local scp practice",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "Real remote scp adds host-key verification, authentication, network, destination-permission, and integrity considerations."
+    },
+    {
+      "id": "linux-rsync",
+      "order": 98,
+      "section": "10-networking-and-services",
+      "command": "rsync",
+      "title": "Synchronize local directory content",
+      "about": "rsync copies differences efficiently and can preserve selected metadata. A trailing slash changes whether the source directory itself or its contents are copied.",
+      "example": "rsync -a source/ destination/",
+      "example_output": "",
+      "breakdown": [
+        "-a enables archive behavior.",
+        "source/ with a trailing slash means copy its contents."
+      ],
+      "task": "Synchronize the contents of source/ into destination/ with archive mode.",
+      "solution": "rsync -a source/ destination/",
+      "hints": [
+        "Use -a and keep the trailing slash on source/."
+      ],
+      "files": {
+        "source/one.txt": "one\n",
+        "source/nested/two.txt": "two\n"
+      },
+      "packages": [
+        "rsync"
+      ],
+      "checks": [
+        {
+          "type": "file-content",
+          "description": "destination/one.txt was copied.",
+          "path": "destination/one.txt",
+          "expected": "one",
+          "normalize": "trim"
+        },
+        {
+          "type": "file-content",
+          "description": "The nested file was copied.",
+          "path": "destination/nested/two.txt",
+          "expected": "two",
+          "normalize": "trim"
+        }
+      ],
+      "completion": "rsync --delete and trailing-slash mistakes can remove or reshape data. Dry-run broad synchronization changes first."
+    },
+    {
+      "id": "linux-systemctl",
+      "order": 99,
+      "section": "10-networking-and-services",
+      "command": "systemctl",
+      "title": "Identify the installed systemd manager",
+      "about": "systemctl controls and queries systemd units. This safe core rep prints version information and does not change a unit.",
+      "example": "systemctl --version | head -n 1",
+      "example_output": "systemd 256 (256.5-1)\n",
+      "breakdown": [
+        "--version performs a local read only.",
+        "head keeps the identifying line."
+      ],
+      "task": "Print only the first line of systemctl version information.",
+      "solution": "systemctl --version | head -n 1",
+      "hints": [
+        "Use --version and head."
+      ],
+      "files": {},
+      "packages": [
+        "systemd"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "A systemd version line was printed.",
+          "expected": "systemd"
+        }
+      ],
+      "completion": "systemctl is systemd-specific. Other Linux distributions or containers may use a different init/service model."
+    },
+    {
+      "id": "linux-journalctl",
+      "order": 100,
+      "section": "10-networking-and-services",
+      "command": "journalctl",
+      "title": "Identify the systemd journal client",
+      "about": "journalctl queries systemd's journal. This core rep prints local version information without requiring journal access or changing state.",
+      "example": "journalctl --version | head -n 1",
+      "example_output": "systemd 256 (256.5-1)\n",
+      "breakdown": [
+        "--version reads program metadata.",
+        "No journal records are accessed."
+      ],
+      "task": "Print only the first line of journalctl version information.",
+      "solution": "journalctl --version | head -n 1",
+      "hints": [
+        "Use --version and keep the first line."
+      ],
+      "files": {},
+      "packages": [
+        "systemd"
+      ],
+      "checks": [
+        {
+          "type": "stdout-contains",
+          "description": "A systemd version line was printed.",
+          "expected": "systemd"
+        }
+      ],
+      "completion": "Journal availability depends on systemd, permissions, retention, namespaces, and persistent-storage configuration."
+    }
+  ]
+}

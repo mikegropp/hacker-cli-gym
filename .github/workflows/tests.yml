@@ -9,53 +9,20 @@ permissions:
   contents: read
 
 jobs:
-  linux:
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.14"]
+  docker-gym:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install curriculum utilities
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bash coreutils grep sed gawk util-linux bsdextrautils \
-            man-db less binutils xxd diffutils procps time ncal file gzip bzip2 \
-            xz-utils zip unzip iproute2 iputils-ping curl wget openssh-client rsync systemd
-      - name: Compile
-        run: python -m compileall -q hacker_cli_gym gym.py tests
-      - name: Test all 100 reference solutions
-        run: python -m unittest discover -s tests -v
-      - name: Doctor
-        run: python gym.py doctor
 
-  windows:
-    name: windows (${{ matrix.python-version }}, shard ${{ matrix.shard }})
-    defaults:
-      run:
-        shell: powershell
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.14"]
-        shard: [0, 1, 2, 3]
-    runs-on: windows-latest
-    env:
-      HACKER_CLI_GYM_TEST_SHARD_COUNT: "4"
-      HACKER_CLI_GYM_TEST_SHARD_INDEX: ${{ matrix.shard }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Compile
-        run: python -m compileall -q hacker_cli_gym gym.py tests
-      - name: Test PowerShell reference-solution shard
-        run: python -m unittest discover -s tests -v
-      - name: Doctor
-        if: matrix.shard == 0
-        run: python gym.py doctor
+      - name: Check Bash syntax
+        run: bash -n gym container/gym
+
+      - name: Build the Linux gym
+        run: docker build --tag hacker-cli-gym:test .
+
+      - name: Run all 100 reference approaches
+        run: docker run --rm --network none hacker-cli-gym:test test
+
+      - name: Report image size
+        run: |
+          docker image inspect hacker-cli-gym:test --format 'Image size: {{.Size}} bytes'

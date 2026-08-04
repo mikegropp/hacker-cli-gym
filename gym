@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly image_name="${HACKER_CLI_GYM_IMAGE:-hacker-cli-gym:local}"
+
+if ! command -v docker >/dev/null 2>&1; then
+  printf 'Docker is required. Install Docker, then run ./gym again.\n' >&2
+  exit 1
+fi
+
+if [[ ${1:-} == "build" ]]; then
+  exec docker build --tag "$image_name" "$repo_dir"
+fi
+
+if ! docker image inspect "$image_name" >/dev/null 2>&1; then
+  printf 'Building %s for the first run...\n' "$image_name"
+  docker build --tag "$image_name" "$repo_dir"
+fi
+
+tty_args=(--interactive)
+if [[ -t 0 && -t 1 ]]; then
+  tty_args+=(--tty)
+fi
+
+container_args=("$@")
+if ((${#container_args[@]} == 0)); then
+  container_args=(start)
+fi
+
+exec docker run \
+  --rm \
+  "${tty_args[@]}" \
+  --network none \
+  --volume hacker-cli-gym-progress:/var/lib/hacker-cli-gym \
+  "$image_name" \
+  "${container_args[@]}"
