@@ -31,26 +31,43 @@ class CatalogTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.lessons = load_lessons()
 
-    def test_catalog_is_exactly_100_linux_commands(self) -> None:
-        self.assertEqual(100, len(self.lessons))
-        self.assertEqual({"linux"}, {item.track for item in self.lessons})
-        self.assertEqual({("linux",)}, {item.platforms for item in self.lessons})
-        self.assertEqual({"posix"}, {item.shell for item in self.lessons})
-        self.assertEqual(list(range(1, 101)), [item.order for item in self.lessons])
-        self.assertEqual(100, len({item.id for item in self.lessons}))
-        self.assertEqual(100, len({item.command for item in self.lessons}))
+    def test_catalog_has_100_commands_per_native_track(self) -> None:
+        self.assertEqual(200, len(self.lessons))
+        self.assertEqual({"linux", "powershell"}, {item.track for item in self.lessons})
+        self.assertEqual(200, len({item.id for item in self.lessons}))
+
+        expectations = {
+            "linux": (("linux",), "posix"),
+            "powershell": (("windows",), "powershell"),
+        }
+        for track, (platforms, shell) in expectations.items():
+            with self.subTest(track=track):
+                lessons = [item for item in self.lessons if item.track == track]
+                self.assertEqual(100, len(lessons))
+                self.assertEqual({platforms}, {item.platforms for item in lessons})
+                self.assertEqual({shell}, {item.shell for item in lessons})
+                self.assertEqual(list(range(1, 101)), [item.order for item in lessons])
+                self.assertEqual(100, len({item.command.casefold() for item in lessons}))
 
     def test_catalog_has_ten_balanced_sections(self) -> None:
-        counts = Counter(item.section for item in self.lessons)
-        self.assertEqual(10, len(counts))
-        self.assertEqual({10}, set(counts.values()))
+        for track in {item.track for item in self.lessons}:
+            with self.subTest(track=track):
+                counts = Counter(
+                    item.section for item in self.lessons if item.track == track
+                )
+                self.assertEqual(10, len(counts))
+                self.assertEqual({10}, set(counts.values()))
 
     def test_difficulty_increases_through_the_curriculum(self) -> None:
-        counts = Counter(item.difficulty for item in self.lessons)
-        self.assertEqual(
-            {"foundation": 30, "intermediate": 40, "advanced": 30},
-            dict(counts),
-        )
+        for track in {item.track for item in self.lessons}:
+            with self.subTest(track=track):
+                counts = Counter(
+                    item.difficulty for item in self.lessons if item.track == track
+                )
+                self.assertEqual(
+                    {"foundation": 30, "intermediate": 40, "advanced": 30},
+                    dict(counts),
+                )
 
     def test_every_lesson_has_instructional_content_and_reference_hint(self) -> None:
         for lesson in self.lessons:
@@ -74,7 +91,7 @@ class CatalogTests(unittest.TestCase):
             self.assertTrue((workspace / "retired").is_dir())
             self.assertEqual([], list((workspace / "retired").iterdir()))
 
-    def test_every_linux_reference_solution_passes_in_bash(self) -> None:
+    def test_every_native_reference_solution_passes_in_its_shell(self) -> None:
         for lesson in compatible_lessons(self.lessons):
             with self.subTest(lesson=lesson.id):
                 command = reference_command(lesson)
@@ -164,6 +181,52 @@ class GuardTests(unittest.TestCase):
             check_command("timeout 1 bash", self.lessons["linux-timeout"])
         with self.assertRaises(UnsafeCommand):
             check_command("printf 'x\\n' | xargs sh", self.lessons["linux-xargs"])
+
+    def test_powershell_blocks_shell_launch_and_dynamic_code(self) -> None:
+        blocked = (
+            ("powershell-get-process", "Start-Process calc.exe"),
+            ("powershell-write-output", "Invoke-Expression 'Get-Date'"),
+            ("powershell-get-content", "Get-Content C:\\Windows\\win.ini"),
+            ("powershell-get-content", "Get-Content ..\\answer.txt"),
+            ("powershell-remove-item", "Remove-Item $env:SystemRoot"),
+            ("powershell-get-variable", "Get-Variable | ForEach-Object { $_.Name }"),
+            ("powershell-sort-object", "Get-Content hosts.txt | Sort-Object { Get-Date }"),
+            ("powershell-get-item", "Get-Item HKLM:\\Software"),
+        )
+        for lesson_id, command in blocked:
+            with self.subTest(lesson=lesson_id), self.assertRaises(UnsafeCommand):
+                check_command(command, self.lessons[lesson_id])
+
+    def test_powershell_state_changes_require_whatif(self) -> None:
+        blocked = (
+            ("powershell-stop-process", "Stop-Process -Id 1"),
+            ("powershell-start-service", "Start-Service EventLog"),
+            ("powershell-stop-service", "Stop-Service EventLog"),
+            ("powershell-restart-service", "Restart-Service EventLog"),
+        )
+        for lesson_id, command in blocked:
+            with self.subTest(lesson=lesson_id), self.assertRaises(UnsafeCommand):
+                check_command(command, self.lessons[lesson_id])
+
+    def test_powershell_network_reps_are_loopback_only(self) -> None:
+        blocked = (
+            ("powershell-test-connection", "Test-Connection 8.8.8.8 -Count 1"),
+            ("powershell-resolve-dnsname", "Resolve-DnsName example.com"),
+        )
+        for lesson_id, command in blocked:
+            with self.subTest(lesson=lesson_id), self.assertRaises(UnsafeCommand):
+                check_command(command, self.lessons[lesson_id])
+
+    def test_invoke_command_is_local_static_practice_only(self) -> None:
+        lesson = self.lessons["powershell-invoke-command"]
+        with self.assertRaises(UnsafeCommand):
+            check_command(
+                "Invoke-Command -ComputerName server -ScriptBlock { 2 + 3 }",
+                lesson,
+            )
+        with self.assertRaises(UnsafeCommand):
+            check_command("Invoke-Command -ScriptBlock { Get-Process }", lesson)
+        check_command("Invoke-Command -ScriptBlock { 2 + 3 }", lesson)
 
 
 class ProgressTests(unittest.TestCase):

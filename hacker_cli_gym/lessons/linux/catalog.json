@@ -1,5 +1,8 @@
 {
   "catalog_version": 1,
+  "track": "linux",
+  "platforms": ["linux"],
+  "shell": "posix",
   "title": "Hacker CLI Gym: 100 Foundational Linux Commands",
   "lessons": [
     {

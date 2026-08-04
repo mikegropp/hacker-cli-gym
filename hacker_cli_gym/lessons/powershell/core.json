@@ -1,0 +1,408 @@
+{
+  "catalog_version": 1,
+  "track": "powershell",
+  "platforms": ["windows"],
+  "shell": "powershell",
+  "lessons": [
+    {
+      "id": "powershell-get-help", "order": 1, "section": "01-discovery-and-navigation", "command": "Get-Help", "title": "Inspect command help",
+      "about": "Get-Help explains cmdlets, concepts, syntax, parameters, and examples without leaving the PowerShell session.",
+      "example": "Get-Help Get-ChildItem -Parameter Filter", "example_output": "-Filter <String>", "breakdown": ["The command name selects the help topic.", "-Parameter narrows the page to one parameter."],
+      "task": "Print the name of Get-ChildItem's Path parameter from local help.", "solution": "Get-Help Get-ChildItem -Parameter Path | Select-Object -ExpandProperty Name", "hints": ["Select the Name property from the parameter help object."],
+      "files": {}, "allowed": ["Get-Help", "Select-Object"], "checks": [{"type": "stdout", "description": "The Path parameter name was printed.", "expected": "Path"}],
+      "completion": "Help is discoverable from the shell; add -Examples or -Full when you need more context."
+    },
+    {
+      "id": "powershell-get-command", "order": 2, "section": "01-discovery-and-navigation", "command": "Get-Command", "title": "Discover available commands",
+      "about": "Get-Command searches cmdlets, functions, aliases, scripts, and applications available in the current session.",
+      "example": "Get-Command Get-Content", "example_output": "CommandType Name        Version Source\n----------- ----        ------- ------\nCmdlet      Get-Content 3.1.0.0 Microsoft.PowerShell.Management", "breakdown": ["A precise name returns one command definition.", "CommandType distinguishes cmdlets from aliases and applications."],
+      "task": "Print only the command type of Get-ChildItem.", "solution": "Get-Command Get-ChildItem | Select-Object -ExpandProperty CommandType", "hints": ["Expand the CommandType property."],
+      "files": {}, "allowed": ["Get-Command", "Select-Object"], "checks": [{"type": "stdout", "description": "Get-ChildItem was identified as a cmdlet.", "expected": "Cmdlet"}],
+      "completion": "Get-Command is the quickest inventory of what PowerShell can run."
+    },
+    {
+      "id": "powershell-get-alias", "order": 3, "section": "01-discovery-and-navigation", "command": "Get-Alias", "title": "Resolve aliases",
+      "about": "Get-Alias shows which full PowerShell command an abbreviated alias resolves to, making unfamiliar commands easier to read.",
+      "example": "Get-Alias ls", "example_output": "CommandType Name Version Source\n----------- ---- ------- ------\nAlias       ls -> Get-ChildItem", "breakdown": ["ls is an alias in Windows PowerShell.", "Definition contains the full target command."],
+      "task": "Print the full command behind the dir alias.", "solution": "Get-Alias dir | Select-Object -ExpandProperty Definition", "hints": ["Expand the Definition property."],
+      "files": {}, "allowed": ["Get-Alias", "Select-Object"], "checks": [{"type": "stdout", "description": "The alias resolved to Get-ChildItem.", "expected": "Get-ChildItem"}],
+      "completion": "Aliases are convenient interactively; full cmdlet names are clearer in scripts."
+    },
+    {
+      "id": "powershell-get-location", "order": 4, "section": "01-discovery-and-navigation", "command": "Get-Location", "title": "Show the current location",
+      "about": "Get-Location returns a PathInfo object for the current location instead of printing an unstructured path string.",
+      "example": "Get-Location", "example_output": "Path\n----\nC:\\work", "breakdown": ["The current provider exposes a location.", "The Path property contains its text representation."],
+      "task": "Print only the absolute path of the disposable practice directory.", "solution": "Get-Location | Select-Object -ExpandProperty Path", "hints": ["Expand the Path property from Get-Location."],
+      "files": {}, "allowed": ["Get-Location", "Select-Object"], "checks": [{"type": "stdout", "description": "The current practice path was printed.", "expected": "{{workspace}}"}],
+      "completion": "PowerShell locations can represent file-system paths and other providers."
+    },
+    {
+      "id": "powershell-set-location", "order": 5, "section": "01-discovery-and-navigation", "command": "Set-Location", "title": "Change the current location",
+      "about": "Set-Location changes the active location for the current PowerShell process, affecting later relative paths.",
+      "example": "Set-Location reports", "example_output": "", "breakdown": ["The relative path is resolved below the current directory.", "A successful location change normally emits no output."],
+      "task": "Change into the existing reports directory.", "solution": "Set-Location reports", "hints": ["Pass the directory name as the path."],
+      "directories": ["reports"], "files": {}, "allowed": ["Set-Location"], "checks": [{"type": "exit-code", "description": "PowerShell entered the reports directory successfully.", "expected": 0}],
+      "completion": "Set-Location changes only this disposable PowerShell process."
+    },
+    {
+      "id": "powershell-get-childitem", "order": 6, "section": "01-discovery-and-navigation", "command": "Get-ChildItem", "title": "List child items",
+      "about": "Get-ChildItem enumerates files, directories, registry keys, variables, and other provider-backed collections.",
+      "example": "Get-ChildItem -Name", "example_output": "alpha.txt\nbeta.txt", "breakdown": ["Without a path, the current location is listed.", "-Name returns compact names instead of FileInfo objects."],
+      "task": "Print only the names of the two files in the practice directory.", "solution": "Get-ChildItem -Name", "hints": ["Use the switch that requests names only."],
+      "files": {"alpha.txt": "a\n", "beta.txt": "b\n"}, "allowed": ["Get-ChildItem"], "checks": [{"type": "stdout-unordered-lines", "description": "Both file names and no extras were printed.", "expected": "alpha.txt\nbeta.txt"}],
+      "completion": "Get-ChildItem is PowerShell's general collection enumerator."
+    },
+    {
+      "id": "powershell-get-item", "order": 7, "section": "01-discovery-and-navigation", "command": "Get-Item", "title": "Inspect one item",
+      "about": "Get-Item retrieves the object representing one path so its metadata can flow through the object pipeline.",
+      "example": "Get-Item note.txt", "example_output": "Mode LastWriteTime Length Name\n---- ------------- ------ ----\n-a--- ...                6 note.txt", "breakdown": ["The path resolves one FileInfo object.", "Length measures the file in bytes."],
+      "task": "Print only the byte length of note.txt.", "solution": "Get-Item note.txt | Select-Object -ExpandProperty Length", "hints": ["Expand the Length property."],
+      "files": {"note.txt": "ready\n"}, "allowed": ["Get-Item", "Select-Object"], "checks": [{"type": "stdout", "description": "The six-byte file length was printed.", "expected": "6"}],
+      "completion": "Get-Item retrieves an object; Get-ChildItem enumerates a collection."
+    },
+    {
+      "id": "powershell-test-path", "order": 8, "section": "01-discovery-and-navigation", "command": "Test-Path", "title": "Test whether a path exists",
+      "about": "Test-Path returns a Boolean and can distinguish leaves such as files from containers such as directories.",
+      "example": "Test-Path settings.json -PathType Leaf", "example_output": "True", "breakdown": ["The path is checked without opening it.", "-PathType Leaf requires a non-container item."],
+      "task": "Confirm that config.json exists and is a file.", "solution": "Test-Path config.json -PathType Leaf", "hints": ["Use -PathType Leaf."],
+      "files": {"config.json": "{\"mode\":\"practice\"}\n"}, "allowed": ["Test-Path"], "checks": [{"type": "stdout", "description": "The path test returned True.", "expected": "True"}],
+      "completion": "Test-Path is useful for defensive scripts before reading, moving, or deleting paths."
+    },
+    {
+      "id": "powershell-resolve-path", "order": 9, "section": "01-discovery-and-navigation", "command": "Resolve-Path", "title": "Resolve an absolute path",
+      "about": "Resolve-Path converts an existing relative or wildcard path into resolved provider path objects.",
+      "example": "Resolve-Path note.txt", "example_output": "Path\n----\nC:\\work\\note.txt", "breakdown": ["The input path must already exist.", "The Path property contains the resolved absolute path."],
+      "task": "Print only the absolute path to note.txt.", "solution": "Resolve-Path note.txt | Select-Object -ExpandProperty Path", "hints": ["Expand the Path property."],
+      "files": {"note.txt": "resolved\n"}, "allowed": ["Resolve-Path", "Select-Object"], "checks": [{"type": "stdout", "description": "The resolved file path was printed.", "expected": "{{workspace}}\\note.txt"}],
+      "completion": "Resolve-Path is valuable before logging or validating the exact path a script will use."
+    },
+    {
+      "id": "powershell-join-path", "order": 10, "section": "01-discovery-and-navigation", "command": "Join-Path", "title": "Combine path segments",
+      "about": "Join-Path combines parent and child segments with the separator rules of the active PowerShell provider.",
+      "example": "Join-Path logs today.txt", "example_output": "logs\\today.txt", "breakdown": ["The first argument is the parent path.", "The second argument is the child segment."],
+      "task": "Combine reports and daily.txt into one relative Windows path.", "solution": "Join-Path reports daily.txt", "hints": ["Pass the parent first and child second."],
+      "files": {}, "allowed": ["Join-Path"], "checks": [{"type": "stdout", "description": "The Windows path segments were joined.", "expected": "reports\\daily.txt"}],
+      "completion": "Join-Path avoids hard-coding path separators in scripts."
+    },
+    {
+      "id": "powershell-new-item", "order": 11, "section": "02-files-and-directories", "command": "New-Item", "title": "Create a new item",
+      "about": "New-Item creates files, directories, and items exposed by other providers using an explicit item type.",
+      "example": "New-Item -ItemType Directory -Path reports", "example_output": "Directory: C:\\work\nMode LastWriteTime Length Name\n---- ------------- ------ ----\nd---- ...                 reports", "breakdown": ["-ItemType Directory requests a container.", "-Path names the new directory."],
+      "task": "Create a directory named reports and print its name.", "solution": "New-Item -ItemType Directory -Path reports | Select-Object -ExpandProperty Name", "hints": ["Create a Directory, then expand Name."],
+      "files": {}, "allowed": ["New-Item", "Select-Object"], "checks": [{"type": "path-exists", "description": "The reports directory exists.", "path": "reports", "kind": "directory"}, {"type": "stdout", "description": "The new directory name was printed.", "expected": "reports"}],
+      "completion": "New-Item works consistently across providers; the item type controls what is created."
+    },
+    {
+      "id": "powershell-copy-item", "order": 12, "section": "02-files-and-directories", "command": "Copy-Item", "title": "Copy a file",
+      "about": "Copy-Item duplicates file-system items while leaving the source in place.",
+      "example": "Copy-Item source.txt backup.txt", "example_output": "", "breakdown": ["The first path is the source.", "The second path is the destination."],
+      "task": "Copy source.txt to backup.txt without changing the source.", "solution": "Copy-Item source.txt backup.txt", "hints": ["Pass source and destination in that order."],
+      "files": {"source.txt": "keep this\n"}, "allowed": ["Copy-Item"], "checks": [{"type": "file-content", "description": "The backup contains the source text.", "path": "backup.txt", "expected": "keep this\n"}, {"type": "file-content", "description": "The source remains unchanged.", "path": "source.txt", "expected": "keep this\n"}],
+      "completion": "Copy-Item is silent on success unless -PassThru is requested."
+    },
+    {
+      "id": "powershell-move-item", "order": 13, "section": "02-files-and-directories", "command": "Move-Item", "title": "Move a file",
+      "about": "Move-Item relocates an item and can give it a different destination name in one operation.",
+      "example": "Move-Item draft.txt archive\\draft.txt", "example_output": "", "breakdown": ["The source is removed from its original path.", "The destination may be a new relative path."],
+      "task": "Move draft.txt to archive\\final.txt.", "solution": "Move-Item draft.txt archive\\final.txt", "hints": ["Use the complete destination path."],
+      "directories": ["archive"], "files": {"draft.txt": "approved\n"}, "allowed": ["Move-Item"], "checks": [{"type": "file-content", "description": "The moved file has the original content.", "path": "archive/final.txt", "expected": "approved\n"}, {"type": "path-not-exists", "description": "The original draft path is gone.", "path": "draft.txt"}],
+      "completion": "Move-Item changes location; Copy-Item deliberately keeps the source."
+    },
+    {
+      "id": "powershell-rename-item", "order": 14, "section": "02-files-and-directories", "command": "Rename-Item", "title": "Rename an item",
+      "about": "Rename-Item changes an item's name while keeping it in the same parent location.",
+      "example": "Rename-Item report.draft report.final", "example_output": "", "breakdown": ["The existing item comes first.", "-NewName may also be used for clarity."],
+      "task": "Rename report.draft to report.final.", "solution": "Rename-Item report.draft report.final", "hints": ["Provide the old and new names."],
+      "files": {"report.draft": "complete\n"}, "allowed": ["Rename-Item"], "checks": [{"type": "file-content", "description": "The final report exists with its content.", "path": "report.final", "expected": "complete\n"}, {"type": "path-not-exists", "description": "The draft name is gone.", "path": "report.draft"}],
+      "completion": "Rename-Item does not move an item to a different parent directory."
+    },
+    {
+      "id": "powershell-remove-item", "order": 15, "section": "02-files-and-directories", "command": "Remove-Item", "title": "Remove a disposable item",
+      "about": "Remove-Item deletes provider items; this rep confines it to one synthetic file in the temporary workspace.",
+      "example": "Remove-Item old.tmp", "example_output": "", "breakdown": ["The relative path stays inside the current workspace.", "Successful deletion is normally silent."],
+      "task": "Delete the disposable file named trash.txt.", "solution": "Remove-Item trash.txt", "hints": ["Pass the file path directly."],
+      "files": {"trash.txt": "discard\n"}, "allowed": ["Remove-Item"], "checks": [{"type": "path-not-exists", "description": "The disposable file was removed.", "path": "trash.txt"}],
+      "completion": "Use -WhatIf with Remove-Item outside a disposable workspace when reviewing a broad deletion."
+    },
+    {
+      "id": "powershell-get-content", "order": 16, "section": "02-files-and-directories", "command": "Get-Content", "title": "Read file content",
+      "about": "Get-Content reads a text file as objects, usually emitting one string object per line.",
+      "example": "Get-Content note.txt", "example_output": "alpha\nbeta", "breakdown": ["Each line enters the success pipeline separately.", "-Raw can instead return one multiline string."],
+      "task": "Print all three lines from briefing.txt.", "solution": "Get-Content briefing.txt", "hints": ["Pass the file name to Get-Content."],
+      "files": {"briefing.txt": "one\ntwo\nthree\n"}, "allowed": ["Get-Content"], "checks": [{"type": "stdout", "description": "All briefing lines were printed in order.", "expected": "one\ntwo\nthree"}],
+      "completion": "Get-Content produces pipeline objects, making each line easy to filter or transform."
+    },
+    {
+      "id": "powershell-set-content", "order": 17, "section": "02-files-and-directories", "command": "Set-Content", "title": "Replace file content",
+      "about": "Set-Content writes new values to a file, replacing the previous contents rather than appending.",
+      "example": "Set-Content -Path status.txt -Value ready", "example_output": "", "breakdown": ["-Path selects the destination file.", "-Value supplies the replacement content."],
+      "task": "Replace status.txt so it contains only ready.", "solution": "Set-Content -Path status.txt -Value ready", "hints": ["Use -Value to replace the old text."],
+      "files": {"status.txt": "pending\nold-data\n"}, "allowed": ["Set-Content"], "checks": [{"type": "file-content", "description": "The status file contains only ready.", "path": "status.txt", "expected": "ready"}],
+      "completion": "Set-Content replaces; Add-Content appends. Choose intentionally."
+    },
+    {
+      "id": "powershell-add-content", "order": 18, "section": "02-files-and-directories", "command": "Add-Content", "title": "Append file content",
+      "about": "Add-Content adds values after existing file content without replacing what is already there.",
+      "example": "Add-Content -Path log.txt -Value beta", "example_output": "", "breakdown": ["The destination already exists.", "The new value is appended as another line."],
+      "task": "Append beta to log.txt after its existing alpha line.", "solution": "Add-Content -Path log.txt -Value beta", "hints": ["Use Add-Content with the existing path."],
+      "files": {"log.txt": "alpha\n"}, "allowed": ["Add-Content"], "checks": [{"type": "file-content", "description": "Both log lines are present in order.", "path": "log.txt", "expected": "alpha\nbeta"}],
+      "completion": "Add-Content is appropriate for simple append-only output such as practice logs."
+    },
+    {
+      "id": "powershell-clear-content", "order": 19, "section": "02-files-and-directories", "command": "Clear-Content", "title": "Empty a file without deleting it",
+      "about": "Clear-Content removes a file's text while preserving the file item itself.",
+      "example": "Clear-Content cache.txt", "example_output": "", "breakdown": ["The path continues to exist.", "Only the stored content is cleared."],
+      "task": "Empty cache.txt but keep the file.", "solution": "Clear-Content cache.txt", "hints": ["Clear the content rather than removing the item."],
+      "files": {"cache.txt": "temporary data\n"}, "allowed": ["Clear-Content"], "checks": [{"type": "path-exists", "description": "The cache file still exists.", "path": "cache.txt", "kind": "file"}, {"type": "file-content", "description": "The cache file is empty.", "path": "cache.txt", "expected": "", "normalize": "exact"}],
+      "completion": "Clear-Content preserves the file path and metadata while removing its stored text."
+    },
+    {
+      "id": "powershell-get-filehash", "order": 20, "section": "02-files-and-directories", "command": "Get-FileHash", "title": "Calculate a file digest",
+      "about": "Get-FileHash computes a cryptographic digest and returns an object containing the algorithm, hash, and path.",
+      "example": "Get-FileHash artifact.txt -Algorithm SHA256", "example_output": "Algorithm Hash                                                             Path\n--------- ----                                                             ----\nSHA256    0123...                                                          C:\\work\\artifact.txt", "breakdown": ["SHA256 selects a common digest algorithm.", "The Hash property is a 64-character hexadecimal string."],
+      "task": "Print only the SHA-256 hash of artifact.txt.", "solution": "Get-FileHash artifact.txt -Algorithm SHA256 | Select-Object -ExpandProperty Hash", "hints": ["Expand the Hash property."],
+      "files": {"artifact.txt": "hello\n"}, "allowed": ["Get-FileHash", "Select-Object"], "checks": [{"type": "stdout-regex", "description": "A 64-character SHA-256 digest was printed.", "expected": "[A-Fa-f0-9]{64}"}],
+      "completion": "A digest verifies exact bytes only when you also trust the expected digest."
+    },
+    {
+      "id": "powershell-select-string", "order": 21, "section": "03-object-pipelines", "command": "Select-String", "title": "Search text with patterns",
+      "about": "Select-String searches strings and files with regular expressions and returns rich MatchInfo objects.",
+      "example": "Select-String -Path service.log -Pattern ERROR", "example_output": "service.log:2:ERROR connection failed", "breakdown": ["-Path selects the file to search.", "-Pattern accepts a regular expression."],
+      "task": "Print only the matching ERROR line from service.log.", "solution": "Select-String -Path service.log -Pattern ERROR | Select-Object -ExpandProperty Line", "hints": ["Expand the Line property from MatchInfo."],
+      "files": {"service.log": "INFO started\nERROR connection failed\nINFO retrying\n"}, "allowed": ["Select-String", "Select-Object"], "checks": [{"type": "stdout", "description": "Only the error line was printed.", "expected": "ERROR connection failed"}],
+      "completion": "Select-String preserves match metadata such as file, line number, and captured matches."
+    },
+    {
+      "id": "powershell-measure-object", "order": 22, "section": "03-object-pipelines", "command": "Measure-Object", "title": "Measure pipeline objects",
+      "about": "Measure-Object counts objects and can calculate numeric sums, averages, minima, maxima, words, lines, and characters.",
+      "example": "Get-Content events.txt | Measure-Object -Line", "example_output": "Lines Words Characters Property\n----- ----- ---------- --------\n3", "breakdown": ["Get-Content emits line objects.", "-Line requests a line-oriented measurement."],
+      "task": "Print only the number of lines in events.txt.", "solution": "Get-Content events.txt | Measure-Object -Line | Select-Object -ExpandProperty Lines", "hints": ["Expand the Lines property."],
+      "files": {"events.txt": "one\ntwo\nthree\n"}, "allowed": ["Get-Content", "Measure-Object", "Select-Object"], "checks": [{"type": "stdout", "description": "The three-line count was printed.", "expected": "3"}],
+      "completion": "Measure-Object works on pipeline objects rather than parsing a display table."
+    },
+    {
+      "id": "powershell-sort-object", "order": 23, "section": "03-object-pipelines", "command": "Sort-Object", "title": "Sort objects",
+      "about": "Sort-Object orders objects by values or named properties and can remove duplicates with -Unique.",
+      "example": "Get-Content hosts.txt | Sort-Object", "example_output": "app-01\ndb-01\nweb-02", "breakdown": ["String objects are sorted by value.", "Object collections can instead be sorted by property."],
+      "task": "Print the host names in alphabetical order.", "solution": "Get-Content hosts.txt | Sort-Object", "hints": ["Pipe the lines into Sort-Object."],
+      "files": {"hosts.txt": "web-02\napp-01\ndb-01\n"}, "allowed": ["Get-Content", "Sort-Object"], "checks": [{"type": "stdout", "description": "The hosts were sorted alphabetically.", "expected": "app-01\ndb-01\nweb-02"}],
+      "completion": "Sort-Object understands properties, so structured objects rarely need text parsing first."
+    },
+    {
+      "id": "powershell-group-object", "order": 24, "section": "03-object-pipelines", "command": "Group-Object", "title": "Group objects by property",
+      "about": "Group-Object collects objects that share a property value and exposes each group's name, count, and members.",
+      "example": "Import-Csv inventory.csv | Group-Object status", "example_output": "Count Name   Group\n----- ----   -----\n    2 active {...}\n    1 idle   {...}", "breakdown": ["status is read as an object property.", "Each result represents one distinct property value."],
+      "task": "Group inventory.csv by status, sort group names, and print only each count.", "solution": "Import-Csv inventory.csv | Group-Object status | Sort-Object Name | Select-Object -ExpandProperty Count", "hints": ["Group on status, sort on Name, then expand Count."],
+      "files": {"inventory.csv": "name,status\nweb,active\ndb,active\narchive,idle\n"}, "allowed": ["Import-Csv", "Group-Object", "Sort-Object", "Select-Object"], "checks": [{"type": "stdout", "description": "The active and idle group counts were printed.", "expected": "2\n1"}],
+      "completion": "Group-Object replaces many manual counting loops with structured grouping."
+    },
+    {
+      "id": "powershell-select-object", "order": 25, "section": "03-object-pipelines", "command": "Select-Object", "title": "Choose properties or objects",
+      "about": "Select-Object projects properties, limits collections, and expands a property into its raw values.",
+      "example": "Import-Csv people.csv | Select-Object -First 1 -Property name", "example_output": "name\n----\nalice", "breakdown": ["-First limits the collection.", "-Property chooses the output shape."],
+      "task": "Print only the name value from every record in people.csv.", "solution": "Import-Csv people.csv | Select-Object -ExpandProperty name", "hints": ["Use -ExpandProperty rather than -Property."],
+      "files": {"people.csv": "name,team\nalice,blue\nbob,red\n"}, "allowed": ["Import-Csv", "Select-Object"], "checks": [{"type": "stdout", "description": "Both names were printed as plain values.", "expected": "alice\nbob"}],
+      "completion": "-Property keeps objects; -ExpandProperty emits the selected property's values."
+    },
+    {
+      "id": "powershell-where-object", "order": 26, "section": "03-object-pipelines", "command": "Where-Object", "title": "Filter objects by property",
+      "about": "Where-Object filters pipeline objects using property comparison syntax or a script block.",
+      "example": "Import-Csv inventory.csv | Where-Object status -eq active", "example_output": "name status\n---- ------\nweb  active\ndb   active", "breakdown": ["status identifies the property.", "-eq active keeps matching objects."],
+      "task": "Print the names of only active inventory records.", "solution": "Import-Csv inventory.csv | Where-Object status -eq active | Select-Object -ExpandProperty name", "hints": ["Use the property comparison form, then expand name."],
+      "files": {"inventory.csv": "name,status\nweb,active\ndb,active\narchive,idle\n"}, "allowed": ["Import-Csv", "Where-Object", "Select-Object"], "checks": [{"type": "stdout", "description": "Only active item names were printed.", "expected": "web\ndb"}],
+      "completion": "Filter objects before formatting so downstream commands retain their properties."
+    },
+    {
+      "id": "powershell-foreach-object", "order": 27, "section": "03-object-pipelines", "command": "ForEach-Object", "title": "Transform every pipeline value",
+      "about": "ForEach-Object invokes a safe member or processing expression once for each incoming pipeline object.",
+      "example": "Get-Content words.txt | ForEach-Object -MemberName ToUpper", "example_output": "ALPHA\nBETA", "breakdown": ["Each line is a System.String object.", "-MemberName invokes the ToUpper method on each string."],
+      "task": "Convert every line in words.txt to uppercase.", "solution": "Get-Content words.txt | ForEach-Object -MemberName ToUpper", "hints": ["Use -MemberName ToUpper."],
+      "files": {"words.txt": "alpha\nbeta\ngamma\n"}, "allowed": ["Get-Content", "ForEach-Object"], "checks": [{"type": "stdout", "description": "Every word was converted to uppercase.", "expected": "ALPHA\nBETA\nGAMMA"}],
+      "completion": "PowerShell passes string objects here, so their methods are available directly."
+    },
+    {
+      "id": "powershell-get-unique", "order": 28, "section": "03-object-pipelines", "command": "Get-Unique", "title": "Remove adjacent duplicate values",
+      "about": "Get-Unique removes adjacent duplicates, so sorting first is the reliable way to deduplicate an unordered list.",
+      "example": "Get-Content colors.txt | Sort-Object | Get-Unique", "example_output": "blue\ngreen\nred", "breakdown": ["Sort-Object places equal values together.", "Get-Unique keeps one object from each adjacent run."],
+      "task": "Print the unique colors in alphabetical order.", "solution": "Get-Content colors.txt | Sort-Object | Get-Unique", "hints": ["Sort before Get-Unique."],
+      "files": {"colors.txt": "red\nblue\nred\ngreen\nblue\n"}, "allowed": ["Get-Content", "Sort-Object", "Get-Unique"], "checks": [{"type": "stdout", "description": "Unique colors were printed in order.", "expected": "blue\ngreen\nred"}],
+      "completion": "For property-based deduplication, Sort-Object -Unique is often more direct."
+    },
+    {
+      "id": "powershell-compare-object", "order": 29, "section": "03-object-pipelines", "command": "Compare-Object", "title": "Compare two object collections",
+      "about": "Compare-Object reports values present only in a reference collection or only in a difference collection.",
+      "example": "Compare-Object -ReferenceObject alpha,beta -DifferenceObject alpha,gamma", "example_output": "InputObject SideIndicator\n----------- -------------\ngamma       =>\nbeta        <=", "breakdown": ["Reference-only values use <=.", "Difference-only values use =>."],
+      "task": "Compare the inline sets and print only the differing values.", "solution": "Compare-Object -ReferenceObject alpha,beta -DifferenceObject alpha,gamma | Select-Object -ExpandProperty InputObject", "hints": ["Expand InputObject from the comparison results."],
+      "files": {}, "allowed": ["Compare-Object", "Select-Object"], "checks": [{"type": "stdout", "description": "The two differing values were printed.", "expected": "gamma\nbeta"}],
+      "completion": "SideIndicator explains which collection contains each unmatched object."
+    },
+    {
+      "id": "powershell-tee-object", "order": 30, "section": "03-object-pipelines", "command": "Tee-Object", "title": "Save and continue a pipeline",
+      "about": "Tee-Object sends pipeline input to a file or variable while also passing the same objects downstream.",
+      "example": "Get-Content source.txt | Tee-Object -FilePath copy.txt", "example_output": "alpha\nbeta", "breakdown": ["-FilePath stores the pipeline values.", "The same values remain visible on stdout."],
+      "task": "Print source.txt while saving the same lines to copy.txt.", "solution": "Get-Content source.txt | Tee-Object -FilePath copy.txt", "hints": ["Use -FilePath for the side copy."],
+      "files": {"source.txt": "alpha\nbeta\n"}, "allowed": ["Get-Content", "Tee-Object"], "checks": [{"type": "stdout", "description": "The original lines continued through the pipeline.", "expected": "alpha\nbeta"}, {"type": "file-content", "description": "The tee file contains the same lines.", "path": "copy.txt", "expected": "alpha\nbeta"}],
+      "completion": "Tee-Object is useful for capturing intermediate pipeline data without stopping the flow."
+    },
+    {
+      "id": "powershell-convertfrom-csv", "order": 31, "section": "04-structured-data", "command": "ConvertFrom-Csv", "title": "Parse CSV text into objects",
+      "about": "ConvertFrom-Csv turns comma-separated text already in the pipeline into objects whose headers become properties.",
+      "example": "Get-Content records.csv | ConvertFrom-Csv", "example_output": "name  role\n----  ----\nalice admin", "breakdown": ["The first input line supplies property names.", "Later rows become custom objects."],
+      "task": "Parse records.csv and print only the role value.", "solution": "Get-Content records.csv | ConvertFrom-Csv | Select-Object -ExpandProperty role", "hints": ["Convert the lines, then expand role."],
+      "files": {"records.csv": "name,role\nalice,admin\n"}, "allowed": ["Get-Content", "ConvertFrom-Csv", "Select-Object"], "checks": [{"type": "stdout", "description": "The parsed role property was printed.", "expected": "admin"}],
+      "completion": "Use ConvertFrom-Csv for CSV text already in memory; Import-Csv reads a file directly."
+    },
+    {
+      "id": "powershell-convertto-csv", "order": 32, "section": "04-structured-data", "command": "ConvertTo-Csv", "title": "Serialize objects as CSV text",
+      "about": "ConvertTo-Csv converts object properties into CSV-formatted string lines without writing a file.",
+      "example": "Import-Csv people.csv | ConvertTo-Csv -NoTypeInformation", "example_output": "\"name\",\"team\"\n\"alice\",\"blue\"", "breakdown": ["Object property names become the header.", "-NoTypeInformation omits the legacy type metadata line."],
+      "task": "Convert people.csv back into CSV text without type information.", "solution": "Import-Csv people.csv | ConvertTo-Csv -NoTypeInformation", "hints": ["Use -NoTypeInformation for clean CSV."],
+      "files": {"people.csv": "name,team\nalice,blue\nbob,red\n"}, "allowed": ["Import-Csv", "ConvertTo-Csv"], "checks": [{"type": "stdout-contains", "description": "The CSV text contains Alice's record.", "expected": "\"alice\",\"blue\""}, {"type": "stdout-contains", "description": "The CSV header was emitted.", "expected": "\"name\",\"team\""}],
+      "completion": "ConvertTo-Csv returns strings; Export-Csv writes them to a file."
+    },
+    {
+      "id": "powershell-import-csv", "order": 33, "section": "04-structured-data", "command": "Import-Csv", "title": "Import a CSV file as objects",
+      "about": "Import-Csv reads a delimited file and creates one object per row using the header fields as properties.",
+      "example": "Import-Csv people.csv", "example_output": "name  team\n----  ----\nalice blue\nbob   red", "breakdown": ["The header defines name and team properties.", "Each data row becomes one object."],
+      "task": "Import people.csv and print only each team value.", "solution": "Import-Csv people.csv | Select-Object -ExpandProperty team", "hints": ["Expand the team property."],
+      "files": {"people.csv": "name,team\nalice,blue\nbob,red\n"}, "allowed": ["Import-Csv", "Select-Object"], "checks": [{"type": "stdout", "description": "Both team values were printed.", "expected": "blue\nred"}],
+      "completion": "Imported rows are objects, so sorting and filtering can address properties by name."
+    },
+    {
+      "id": "powershell-export-csv", "order": 34, "section": "04-structured-data", "command": "Export-Csv", "title": "Export objects to a CSV file",
+      "about": "Export-Csv writes object properties to a reusable comma-separated file.",
+      "example": "Import-Csv people.csv | Export-Csv copy.csv -NoTypeInformation", "example_output": "", "breakdown": ["Pipeline objects supply the rows.", "The output path receives a new CSV file."],
+      "task": "Export only the blue-team records from people.csv to blue.csv.", "solution": "Import-Csv people.csv | Where-Object team -eq blue | Export-Csv blue.csv -NoTypeInformation", "hints": ["Filter before Export-Csv."],
+      "files": {"people.csv": "name,team\nalice,blue\nbob,red\n"}, "allowed": ["Import-Csv", "Where-Object", "Export-Csv"], "checks": [{"type": "file-content", "description": "The exported CSV contains only Alice's blue-team row.", "path": "blue.csv", "expected": "\"name\",\"team\"\n\"alice\",\"blue\""}],
+      "completion": "Export-Csv serializes visible object properties, so select the intended shape first."
+    },
+    {
+      "id": "powershell-convertto-json", "order": 35, "section": "04-structured-data", "command": "ConvertTo-Json", "title": "Serialize objects as JSON",
+      "about": "ConvertTo-Json serializes PowerShell objects into JSON for APIs, configuration, logs, and interchange.",
+      "example": "Import-Csv person.csv | ConvertTo-Json -Compress", "example_output": "{\"name\":\"alice\",\"level\":\"3\"}", "breakdown": ["Properties become JSON keys.", "-Compress removes indentation and extra whitespace."],
+      "task": "Convert the single object in person.csv to compact JSON.", "solution": "Import-Csv person.csv | ConvertTo-Json -Compress", "hints": ["Use -Compress for one line."],
+      "files": {"person.csv": "name,level\nalice,3\n"}, "allowed": ["Import-Csv", "ConvertTo-Json"], "checks": [{"type": "stdout", "description": "The compact JSON object was printed.", "expected": "{\"name\":\"alice\",\"level\":\"3\"}"}],
+      "completion": "JSON preserves structured property names instead of relying on display formatting."
+    },
+    {
+      "id": "powershell-convertfrom-json", "order": 36, "section": "04-structured-data", "command": "ConvertFrom-Json", "title": "Parse JSON into objects",
+      "about": "ConvertFrom-Json turns JSON text into PowerShell objects whose properties can be selected, filtered, and transformed.",
+      "example": "Get-Content person.json -Raw | ConvertFrom-Json", "example_output": "name  level\n----  -----\nalice     3", "breakdown": ["-Raw keeps the JSON document as one string.", "JSON keys become PowerShell properties."],
+      "task": "Parse person.json and print only the name property.", "solution": "Get-Content person.json -Raw | ConvertFrom-Json | Select-Object -ExpandProperty name", "hints": ["Read with -Raw, convert, then expand name."],
+      "files": {"person.json": "{\"name\":\"alice\",\"level\":3}\n"}, "allowed": ["Get-Content", "ConvertFrom-Json", "Select-Object"], "checks": [{"type": "stdout", "description": "The parsed name was printed.", "expected": "alice"}],
+      "completion": "ConvertFrom-Json makes JSON properties available to the object pipeline."
+    },
+    {
+      "id": "powershell-convertto-xml", "order": 37, "section": "04-structured-data", "command": "ConvertTo-Xml", "title": "Serialize objects as XML",
+      "about": "ConvertTo-Xml represents PowerShell objects and their properties in an XML document or string.",
+      "example": "Import-Csv person.csv | ConvertTo-Xml -As String -NoTypeInformation", "example_output": "<?xml version=\"1.0\"?>\n<Objects>...</Objects>", "breakdown": ["-As String returns XML text.", "-NoTypeInformation keeps the document focused on properties."],
+      "task": "Convert person.csv to XML text without type information.", "solution": "Import-Csv person.csv | ConvertTo-Xml -As String -NoTypeInformation", "hints": ["Use -As String and -NoTypeInformation."],
+      "files": {"person.csv": "name,level\nalice,3\n"}, "allowed": ["Import-Csv", "ConvertTo-Xml"], "checks": [{"type": "stdout-contains", "description": "The XML contains an Objects root.", "expected": "<Objects>"}, {"type": "stdout-contains", "description": "The XML contains Alice's value.", "expected": "alice"}],
+      "completion": "ConvertTo-Xml is useful when XML consumers need an object's property data."
+    },
+    {
+      "id": "powershell-select-xml", "order": 38, "section": "04-structured-data", "command": "Select-Xml", "title": "Query XML with XPath",
+      "about": "Select-Xml applies an XPath expression to XML files or nodes and returns match objects.",
+      "example": "Select-Xml -Path config.xml -XPath '//port'", "example_output": "Node Path        Pattern\n---- ----        -------\nport config.xml  //port", "breakdown": ["-Path supplies the XML document.", "-XPath selects matching nodes anywhere below the root."],
+      "task": "Query config.xml and print the port node's inner text.", "solution": "Select-Xml -Path config.xml -XPath '//port' | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText", "hints": ["Expand Node, then InnerText."],
+      "files": {"config.xml": "<config><host>localhost</host><port>8080</port></config>\n"}, "allowed": ["Select-Xml", "Select-Object"], "checks": [{"type": "stdout", "description": "The XML port value was printed.", "expected": "8080"}],
+      "completion": "XPath is precise for structured XML and avoids brittle string matching."
+    },
+    {
+      "id": "powershell-convertto-html", "order": 39, "section": "04-structured-data", "command": "ConvertTo-Html", "title": "Render objects as HTML",
+      "about": "ConvertTo-Html builds an HTML table or list from the properties of pipeline objects.",
+      "example": "Import-Csv people.csv | ConvertTo-Html -Fragment", "example_output": "<table>...</table>", "breakdown": ["Imported objects provide columns and rows.", "-Fragment omits the outer html and body document tags."],
+      "task": "Convert people.csv to an HTML table fragment.", "solution": "Import-Csv people.csv | ConvertTo-Html -Fragment | Out-String", "hints": ["Use -Fragment and collect the lines with Out-String."],
+      "files": {"people.csv": "name,team\nalice,blue\nbob,red\n"}, "allowed": ["Import-Csv", "ConvertTo-Html", "Out-String"], "checks": [{"type": "stdout-contains", "description": "An HTML table was produced.", "expected": "<table>"}, {"type": "stdout-contains", "description": "The table contains Alice's row.", "expected": "alice"}],
+      "completion": "Select the intended properties before ConvertTo-Html to control table columns."
+    },
+    {
+      "id": "powershell-out-file", "order": 40, "section": "04-structured-data", "command": "Out-File", "title": "Write display output to a file",
+      "about": "Out-File sends formatted pipeline output to a text file with an explicit encoding.",
+      "example": "Write-Output ready | Out-File -FilePath status.txt -Encoding ascii", "example_output": "", "breakdown": ["Pipeline text becomes file content.", "An explicit encoding makes later reads predictable."],
+      "task": "Write the word ready to status.txt using ASCII encoding.", "solution": "Write-Output ready | Out-File -FilePath status.txt -Encoding ascii", "hints": ["Pipe Write-Output into Out-File and set -Encoding ascii."],
+      "files": {}, "allowed": ["Write-Output", "Out-File"], "checks": [{"type": "file-content", "description": "The output file contains ready.", "path": "status.txt", "expected": "ready"}],
+      "completion": "Out-File writes formatted text; Export-Csv and ConvertTo-Json preserve more structure."
+    },
+    {
+      "id": "powershell-get-variable", "order": 41, "section": "05-variables-and-formatting", "command": "Get-Variable", "title": "Inspect a variable",
+      "about": "Get-Variable returns variable metadata or, with -ValueOnly, the value stored in a named PowerShell variable.",
+      "example": "Get-Variable HOME -ValueOnly", "example_output": "C:\\Users\\student", "breakdown": ["HOME names the variable without a dollar sign.", "-ValueOnly emits its stored value."],
+      "task": "Print only the HOME variable value for this disposable rep.", "solution": "Get-Variable HOME -ValueOnly", "hints": ["Use the variable name without $."],
+      "files": {}, "allowed": ["Get-Variable"], "checks": [{"type": "stdout", "description": "The temporary HOME value was printed.", "expected": "{{workspace}}"}],
+      "completion": "Get-Variable can inspect scope, options, descriptions, and values without dynamic evaluation."
+    },
+    {
+      "id": "powershell-set-variable", "order": 42, "section": "05-variables-and-formatting", "command": "Set-Variable", "title": "Create or update a variable",
+      "about": "Set-Variable creates or changes a named variable and can return the resulting variable object with -PassThru.",
+      "example": "Set-Variable -Name Mode -Value practice -PassThru", "example_output": "Name Value\n---- -----\nMode practice", "breakdown": ["-Name omits the dollar-sign syntax.", "-PassThru makes the otherwise silent change observable."],
+      "task": "Set Mode to practice and print only the stored value.", "solution": "Set-Variable -Name Mode -Value practice -PassThru | Select-Object -ExpandProperty Value", "hints": ["Request -PassThru, then expand Value."],
+      "files": {}, "allowed": ["Set-Variable", "Select-Object"], "checks": [{"type": "stdout", "description": "The new variable value was printed.", "expected": "practice"}],
+      "completion": "Variables created here disappear with the disposable PowerShell process."
+    },
+    {
+      "id": "powershell-remove-variable", "order": 43, "section": "05-variables-and-formatting", "command": "Remove-Variable", "title": "Remove a variable",
+      "about": "Remove-Variable deletes a variable from the selected scope without treating its name as executable code.",
+      "example": "Remove-Variable Mode", "example_output": "", "breakdown": ["The variable name is supplied without $.", "Successful removal normally emits no output."],
+      "task": "Create Mode, remove it, then prove Variable:Mode no longer exists.", "solution": "Set-Variable Mode practice; Remove-Variable Mode; Test-Path Variable:Mode", "hints": ["Use Test-Path against the Variable provider after removal."],
+      "files": {}, "allowed": ["Set-Variable", "Remove-Variable", "Test-Path"], "operators": [";"], "checks": [{"type": "stdout", "description": "The removed variable no longer exists.", "expected": "False"}],
+      "completion": "Variable changes remain inside this one disposable PowerShell process."
+    },
+    {
+      "id": "powershell-get-member", "order": 44, "section": "05-variables-and-formatting", "command": "Get-Member", "title": "Inspect object properties and methods",
+      "about": "Get-Member reveals the type, properties, methods, events, and adapted members available on pipeline objects.",
+      "example": "Get-Item note.txt | Get-Member", "example_output": "TypeName: System.IO.FileInfo", "breakdown": ["The incoming FileInfo determines the member list.", "-Name can narrow the inspection."],
+      "task": "Confirm that note.txt's object exposes a member named Length.", "solution": "Get-Item note.txt | Get-Member -Name Length | Select-Object -ExpandProperty Name", "hints": ["Filter Get-Member with -Name Length."],
+      "files": {"note.txt": "ready\n"}, "allowed": ["Get-Item", "Get-Member", "Select-Object"], "checks": [{"type": "stdout", "description": "The Length member name was printed.", "expected": "Length"}],
+      "completion": "Get-Member is the bridge from seeing output to understanding usable object data."
+    },
+    {
+      "id": "powershell-write-output", "order": 45, "section": "05-variables-and-formatting", "command": "Write-Output", "title": "Write to the success pipeline",
+      "about": "Write-Output sends objects to PowerShell's success stream so later pipeline stages can process them.",
+      "example": "Write-Output alpha beta", "example_output": "alpha\nbeta", "breakdown": ["Each argument becomes a pipeline object.", "The host renders objects only at the pipeline's end."],
+      "task": "Write alpha, beta, and gamma as three pipeline values.", "solution": "Write-Output alpha beta gamma", "hints": ["Pass the three values as arguments."],
+      "files": {}, "allowed": ["Write-Output"], "checks": [{"type": "stdout", "description": "All three values were emitted in order.", "expected": "alpha\nbeta\ngamma"}],
+      "completion": "Write-Output participates in the pipeline; Write-Host is presentation-oriented."
+    },
+    {
+      "id": "powershell-write-host", "order": 46, "section": "05-variables-and-formatting", "command": "Write-Host", "title": "Write presentation text",
+      "about": "Write-Host writes display-oriented information for a person at the console rather than data intended for processing.",
+      "example": "Write-Host 'practice ready'", "example_output": "practice ready", "breakdown": ["The quoted text is one argument.", "Host output is intended for presentation."],
+      "task": "Display the exact phrase practice ready.", "solution": "Write-Host 'practice ready'", "hints": ["Quote the two-word phrase."],
+      "files": {}, "allowed": ["Write-Host"], "checks": [{"type": "stdout", "description": "The presentation text was displayed.", "expected": "practice ready"}],
+      "completion": "Prefer Write-Output for reusable data and Write-Host for intentional human-facing display."
+    },
+    {
+      "id": "powershell-format-table", "order": 47, "section": "05-variables-and-formatting", "command": "Format-Table", "title": "Format objects as a table",
+      "about": "Format-Table creates display instructions that arrange selected properties into columns for terminal reading.",
+      "example": "Import-Csv people.csv | Format-Table name,team", "example_output": "name  team\n----  ----\nalice blue", "breakdown": ["The property list defines columns.", "Formatting belongs at the end of a data pipeline."],
+      "task": "Display name and team from people.csv as a table without headers.", "solution": "Import-Csv people.csv | Format-Table name,team -HideTableHeaders | Out-String", "hints": ["Use -HideTableHeaders, then Out-String."],
+      "files": {"people.csv": "name,team\nalice,blue\nbob,red\n"}, "allowed": ["Import-Csv", "Format-Table", "Out-String"], "checks": [{"type": "stdout-contains", "description": "The table contains Alice.", "expected": "alice"}, {"type": "stdout-contains", "description": "The table contains the blue team.", "expected": "blue"}],
+      "completion": "After Format-Table, the pipeline contains formatting data rather than the original objects."
+    },
+    {
+      "id": "powershell-format-list", "order": 48, "section": "05-variables-and-formatting", "command": "Format-List", "title": "Format properties vertically",
+      "about": "Format-List displays one property per line, which is useful when an object has more properties than fit in a table.",
+      "example": "Import-Csv person.csv | Format-List name,level", "example_output": "name  : alice\nlevel : 3", "breakdown": ["The property list controls what is shown.", "Each property appears on its own line."],
+      "task": "Display the name and level properties from person.csv as a list.", "solution": "Import-Csv person.csv | Format-List name,level | Out-String", "hints": ["Format the two properties, then collect the display text."],
+      "files": {"person.csv": "name,level\nalice,3\n"}, "allowed": ["Import-Csv", "Format-List", "Out-String"], "checks": [{"type": "stdout-contains", "description": "The list contains the name value.", "expected": "alice"}, {"type": "stdout-contains", "description": "The list contains the level value.", "expected": "3"}],
+      "completion": "Format-List is for presentation; select properties before formatting when data continues downstream."
+    },
+    {
+      "id": "powershell-out-string", "order": 49, "section": "05-variables-and-formatting", "command": "Out-String", "title": "Convert display output to strings",
+      "about": "Out-String converts pipeline output into rendered text and can emit one string per input line with -Stream.",
+      "example": "Get-Content note.txt | Out-String -Stream", "example_output": "ready", "breakdown": ["Get-Content supplies a string object.", "-Stream avoids combining everything into one multiline string."],
+      "task": "Render note.txt through Out-String in streaming mode.", "solution": "Get-Content note.txt | Out-String -Stream", "hints": ["Use the -Stream switch."],
+      "files": {"note.txt": "ready\n"}, "allowed": ["Get-Content", "Out-String"], "checks": [{"type": "stdout", "description": "The rendered note text was printed.", "expected": "ready"}],
+      "completion": "Out-String is useful at the boundary where structured output must become display text."
+    },
+    {
+      "id": "powershell-write-warning", "order": 50, "section": "05-variables-and-formatting", "command": "Write-Warning", "title": "Emit a warning stream message",
+      "about": "Write-Warning sends a non-terminating advisory message to PowerShell's warning stream without treating it as success data.",
+      "example": "Write-Warning 'check configuration'", "example_output": "WARNING: check configuration", "breakdown": ["The message is tagged as a warning.", "Warnings can be handled separately from normal output."],
+      "task": "Emit a warning containing the phrase check configuration.", "solution": "Write-Warning 'check configuration'", "hints": ["Pass the phrase as one quoted warning message."],
+      "files": {}, "allowed": ["Write-Warning"], "checks": [{"type": "output-contains", "description": "The warning message was emitted.", "expected": "check configuration"}, {"type": "exit-code", "description": "The warning did not fail the command.", "expected": 0}],
+      "completion": "Warnings communicate concern without automatically terminating a script."
+    }
+  ]
+}
