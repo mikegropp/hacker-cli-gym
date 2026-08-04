@@ -12,7 +12,7 @@ from pathlib import Path
 from . import __version__
 from .content import compatible_lessons, current_platform, load_lessons
 from .engine import run_lesson
-from .execution import shell_command
+from .execution import powershell_module_path, shell_command
 from .models import Lesson, LessonFormatError
 from .progress import XP_PER_LEVEL, ProgressStore, rank_for_level
 
@@ -97,9 +97,11 @@ def _available_commands(lessons: list[Lesson]) -> set[str]:
             "Write-Output $command } }"
         )
     environment = os.environ.copy()
-    for key in tuple(environment):
-        if key.casefold() == "psmodulepath":
-            environment.pop(key)
+    if lessons[0].shell == "powershell":
+        for key in tuple(environment):
+            if key.casefold() == "psmodulepath":
+                environment.pop(key)
+        environment["PSModulePath"] = powershell_module_path()
     try:
         result = subprocess.run(
             [*invocation, probe],

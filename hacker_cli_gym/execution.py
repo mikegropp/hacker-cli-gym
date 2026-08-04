@@ -6,8 +6,9 @@ import shlex
 import shutil
 import stat
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from .models import Check, Lesson
 
@@ -376,8 +377,6 @@ def shell_command(lesson: Lesson) -> list[str] | None:
         powershell = (
             shutil.which("powershell.exe")
             or shutil.which("powershell")
-            or shutil.which("pwsh.exe")
-            or shutil.which("pwsh")
         )
         return (
             [powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command"]
@@ -387,16 +386,59 @@ def shell_command(lesson: Lesson) -> list[str] | None:
     return None
 
 
+def powershell_module_path(
+    *,
+    user_profile: Path | None = None,
+    source_environment: Mapping[str, str] | None = None,
+) -> str:
+    source = source_environment if source_environment is not None else os.environ
+    folded = {key.casefold(): value for key, value in source.items()}
+    candidates: list[PureWindowsPath] = []
+
+    profile = str(user_profile) if user_profile is not None else folded.get("userprofile")
+    if profile:
+        candidates.append(
+            PureWindowsPath(profile) / "Documents" / "WindowsPowerShell" / "Modules"
+        )
+    for variable_name in ("programfiles", "programfiles(x86)"):
+        program_files = folded.get(variable_name)
+        if program_files:
+            candidates.append(
+                PureWindowsPath(program_files) / "WindowsPowerShell" / "Modules"
+            )
+    system_root = folded.get("systemroot") or folded.get("windir")
+    if system_root:
+        candidates.append(
+            PureWindowsPath(system_root)
+            / "System32"
+            / "WindowsPowerShell"
+            / "v1.0"
+            / "Modules"
+        )
+
+    return ";".join(dict.fromkeys(str(candidate) for candidate in candidates))
+
+
 def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 12.0) -> CommandResult:
     invocation = shell_command(lesson)
     if invocation is None:
         raise RuntimeError(f"Required shell is unavailable for {lesson.id}: {lesson.shell}")
 
     inherited_keys = (
+        "ALLUSERSPROFILE",
         "COMSPEC",
+        "CommonProgramFiles",
+        "CommonProgramFiles(x86)",
+        "OS",
         "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "ProgramData",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
         "SystemDrive",
         "SystemRoot",
+        "USERDOMAIN",
+        "USERNAME",
         "WINDIR",
     )
     environment = {
@@ -418,6 +460,8 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
             "PAGER": "cat",
         }
     )
+    if lesson.shell == "powershell":
+        environment["PSModulePath"] = powershell_module_path(user_profile=workspace)
     try:
         completed = subprocess.run(
             [*invocation, command],
