@@ -253,10 +253,15 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             item for item in load_lessons() if item.id == "powershell-get-help"
         )
 
-    def test_windows_powershell_builds_its_native_module_path(self) -> None:
+    def test_pwsh_parent_is_normalized_after_windows_powershell_starts(self) -> None:
         completed = SimpleNamespace(stdout="", stderr="", returncode=0)
+        pwsh_module_path = (
+            r"C:\Users\runner\Documents\PowerShell\Modules;"
+            r"C:\Program Files\PowerShell\7\Modules;"
+            r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
+        )
         host_environment = {
-            "PSModulePath": "pwsh-only-modules",
+            "PSModulePath": pwsh_module_path,
             "ProgramFiles": r"C:\Program Files",
             "SystemRoot": r"C:\Windows",
             "USERPROFILE": r"C:\Users\runner",
@@ -276,27 +281,67 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             ):
                 run_command("Get-Help Get-Help", self.lesson, workspace)
 
-        module_path = mocked_run.call_args.kwargs["env"]["PSModulePath"]
-        self.assertNotIn("pwsh-only-modules", module_path)
-        self.assertNotIn(str(workspace), module_path)
+        child_environment = mocked_run.call_args.kwargs["env"]
+        rendered_command = mocked_run.call_args.args[0][-1]
+        self.assertEqual(pwsh_module_path, child_environment["PSModulePath"])
+        self.assertEqual(str(workspace), child_environment["USERPROFILE"])
+        self.assertTrue(rendered_command.startswith("$env:PSModulePath = '"))
         self.assertIn(
             r"C:\Users\runner\Documents\WindowsPowerShell\Modules",
-            module_path,
+            rendered_command,
         )
         self.assertIn(
             r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules",
-            module_path,
+            rendered_command,
         )
-        self.assertIn(r"C:\Program Files\WindowsPowerShell\Modules", module_path)
+        self.assertTrue(rendered_command.endswith("; Get-Help Get-Help"))
 
-    def test_doctor_uses_the_same_native_module_path(self) -> None:
+    def test_native_parent_runs_the_lesson_without_a_bootstrap(self) -> None:
+        completed = SimpleNamespace(stdout="", stderr="", returncode=0)
+        native_module_path = (
+            r"C:\Users\runner\Documents\WindowsPowerShell\Modules;"
+            r"C:\Program Files\WindowsPowerShell\Modules;"
+            r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
+        )
+        host_environment = {
+            "PSModulePath": native_module_path,
+            "ProgramFiles": r"C:\Program Files",
+            "SystemRoot": r"C:\Windows",
+            "USERPROFILE": r"C:\Users\runner",
+        }
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name).resolve()
+            with (
+                patch.dict(os.environ, host_environment),
+                patch(
+                    "hacker_cli_gym.execution.shell_command",
+                    return_value=["powershell.exe", "-Command"],
+                ),
+                patch(
+                    "hacker_cli_gym.execution.subprocess.run",
+                    return_value=completed,
+                ) as mocked_run,
+            ):
+                run_command("Get-Help Get-Help", self.lesson, workspace)
+
+        self.assertEqual(
+            native_module_path,
+            mocked_run.call_args.kwargs["env"]["PSModulePath"],
+        )
+        self.assertEqual("Get-Help Get-Help", mocked_run.call_args.args[0][-1])
+
+    def test_doctor_normalizes_pwsh_modules_after_process_startup(self) -> None:
         completed = SimpleNamespace(
             stdout="Get-Help\n",
             stderr="",
             returncode=0,
         )
+        pwsh_module_path = (
+            r"C:\Users\runner\Documents\PowerShell\Modules;"
+            r"C:\Program Files\PowerShell\7\Modules"
+        )
         host_environment = {
-            "PSModulePath": "pwsh-only-modules",
+            "PSModulePath": pwsh_module_path,
             "ProgramFiles": r"C:\Program Files",
             "SystemRoot": r"C:\Windows",
             "USERPROFILE": r"C:\Users\runner",
@@ -315,11 +360,15 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             available = _available_commands([self.lesson])
 
         self.assertEqual({"Get-Help"}, available)
-        module_path = mocked_run.call_args.kwargs["env"]["PSModulePath"]
-        self.assertNotIn("pwsh-only-modules", module_path)
+        self.assertEqual(
+            pwsh_module_path,
+            mocked_run.call_args.kwargs["env"]["PSModulePath"],
+        )
+        rendered_probe = mocked_run.call_args.args[0][-1]
+        self.assertTrue(rendered_probe.startswith("$env:PSModulePath = '"))
         self.assertIn(
             r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules",
-            module_path,
+            rendered_probe,
         )
 
 

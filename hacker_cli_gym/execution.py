@@ -418,6 +418,32 @@ def powershell_module_path(
     return ";".join(dict.fromkeys(str(candidate) for candidate in candidates))
 
 
+def prepare_powershell_command(
+    command: str,
+    *,
+    source_environment: Mapping[str, str] | None = None,
+) -> str:
+    """Normalize a PowerShell 7 module path after Windows PowerShell starts."""
+    source = source_environment if source_environment is not None else os.environ
+    folded = {key.casefold(): value for key, value in source.items()}
+    module_directories = [
+        item.strip().replace("/", "\\").casefold()
+        for item in folded.get("psmodulepath", "").split(";")
+        if item.strip()
+    ]
+    inherited_from_pwsh = any(
+        "\\powershell\\7\\modules" in item
+        or "\\documents\\powershell\\modules" in item
+        for item in module_directories
+    )
+    if not inherited_from_pwsh:
+        return command
+
+    native_path = powershell_module_path(source_environment=source)
+    escaped_path = native_path.replace("'", "''")
+    return f"$env:PSModulePath = '{escaped_path}'; {command}"
+
+
 def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 12.0) -> CommandResult:
     invocation = shell_command(lesson)
     if invocation is None:
@@ -430,6 +456,7 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
         "CommonProgramFiles(x86)",
         "OS",
         "PATHEXT",
+        "PSModulePath",
         "PROCESSOR_ARCHITECTURE",
         "ProgramData",
         "ProgramFiles",
@@ -459,14 +486,14 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
             "PAGER": "cat",
         }
     )
-    if lesson.shell == "powershell":
-        # Keep module discovery stable across disposable reps. Including the
-        # unique workspace profile here forces Windows PowerShell to rebuild
-        # its module-analysis cache for every command.
-        environment["PSModulePath"] = powershell_module_path()
+    rendered_command = (
+        prepare_powershell_command(command)
+        if lesson.shell == "powershell"
+        else command
+    )
     try:
         completed = subprocess.run(
-            [*invocation, command],
+            [*invocation, rendered_command],
             cwd=workspace,
             env=environment,
             stdin=subprocess.DEVNULL,

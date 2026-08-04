@@ -33,6 +33,9 @@ jobs:
         run: python gym.py doctor
 
   windows:
+    defaults:
+      run:
+        shell: powershell
     strategy:
       fail-fast: false
       matrix:
