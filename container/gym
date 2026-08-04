@@ -1,0 +1,674 @@
+#!/usr/bin/env bash
+
+shopt -s checkwinsize
+
+readonly GYM_ROOT=/opt/hacker-cli-gym
+readonly CATALOG="$GYM_ROOT/curriculum/linux.json"
+readonly WORKSPACE=/work
+readonly PROGRESS_DIR=/var/lib/hacker-cli-gym
+readonly PROGRESS_FILE="$PROGRESS_DIR/progress.json"
+readonly SESSION_DIR="/tmp/hacker-cli-gym-$$"
+readonly LAST_OUT="$SESSION_DIR/last.stdout"
+readonly LAST_ERR="$SESSION_DIR/last.stderr"
+readonly PARSE_ERR="$SESSION_DIR/parse.stderr"
+
+mkdir -p "$WORKSPACE" "$PROGRESS_DIR" "$SESSION_DIR"
+: >"$LAST_OUT"
+: >"$LAST_ERR"
+trap 'rm -rf -- "$SESSION_DIR"' EXIT
+
+if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+  readonly BOLD=$'\033[1m'
+  readonly DIM=$'\033[2m'
+  readonly GREEN=$'\033[32m'
+  readonly YELLOW=$'\033[33m'
+  readonly RED=$'\033[31m'
+  readonly CYAN=$'\033[36m'
+  readonly RESET=$'\033[0m'
+else
+  readonly BOLD=''
+  readonly DIM=''
+  readonly GREEN=''
+  readonly YELLOW=''
+  readonly RED=''
+  readonly CYAN=''
+  readonly RESET=''
+fi
+
+LESSON_JSON=''
+LESSON_ID=''
+LESSON_ORDER=0
+LESSON_COMMAND=''
+LESSON_SECTION=''
+LESSON_DIFFICULTY='foundation'
+LAST_RC=0
+ALL_CHECKS_PASSED=0
+COMMAND_INPUT=''
+
+die() {
+  printf '%sError:%s %s\n' "$RED" "$RESET" "$*" >&2
+  exit 1
+}
+
+progress_init() {
+  if [[ ! -s $PROGRESS_FILE ]] || ! jq -e '.schema_version == 2 and (.completed | type == "object") and (.activity | type == "array")' "$PROGRESS_FILE" >/dev/null 2>&1; then
+    printf '%s\n' '{"schema_version":2,"completed":{},"activity":[]}' >"$PROGRESS_FILE"
+  fi
+}
+
+rank_for_level() {
+  local level=$1
+  if ((level >= 20)); then
+    printf 'Shellsmith'
+  elif ((level >= 15)); then
+    printf 'Administrator'
+  elif ((level >= 10)); then
+    printf 'Operator'
+  elif ((level >= 5)); then
+    printf 'Navigator'
+  else
+    printf 'Rookie'
+  fi
+}
+
+total_xp() {
+  jq '[.completed[].points // 0] | add // 0' "$PROGRESS_FILE"
+}
+
+streak_days() {
+  local dates cursor streak=0
+  dates=$(jq -r '.activity[]?.date // empty' "$PROGRESS_FILE" | sort -u)
+  [[ -n $dates ]] || { printf '0'; return; }
+
+  cursor=$(date -u +%F)
+  if ! grep -Fqx "$cursor" <<<"$dates"; then
+    cursor=$(date -u --date="$cursor - 1 day" +%F)
+  fi
+  while grep -Fqx "$cursor" <<<"$dates"; do
+    ((streak += 1))
+    cursor=$(date -u --date="$cursor - 1 day" +%F)
+  done
+  printf '%s' "$streak"
+}
+
+score_rep() {
+  local difficulty=$1 attempts=$2 hints=$3 base
+  case "$difficulty" in
+    intermediate) base=140 ;;
+    advanced) base=180 ;;
+    *) base=100 ;;
+  esac
+  local score=$((base - (attempts > 1 ? (attempts - 1) * 10 : 0) - hints * 15))
+  ((score < 25)) && score=25
+  printf '%s' "$score"
+}
+
+mark_complete() {
+  local attempts=$1 hints=$2 score previous best gained now today temporary
+  score=$(score_rep "$LESSON_DIFFICULTY" "$attempts" "$hints")
+  previous=$(jq -r --arg id "$LESSON_ID" '.completed[$id].points // 0' "$PROGRESS_FILE")
+  best=$score
+  ((previous > best)) && best=$previous
+  gained=$((best - previous))
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  today=${now%%T*}
+  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX")
+
+  jq \
+    --arg id "$LESSON_ID" \
+    --arg now "$now" \
+    --arg today "$today" \
+    --argjson attempts "$attempts" \
+    --argjson hints "$hints" \
+    --argjson points "$best" \
+    '.completed[$id] = {
+      completed_at: (.completed[$id].completed_at // $now),
+      last_completed_at: $now,
+      attempts: $attempts,
+      hints_used: $hints,
+      points: $points
+    }
+    | .activity += [{lesson_id: $id, date: $today, completed_at: $now}]
+    | .activity = .activity[-1000:]' \
+    "$PROGRESS_FILE" >"$temporary"
+  mv -- "$temporary" "$PROGRESS_FILE"
+  printf '%s' "$gained"
+}
+
+load_lesson() {
+  local selector=$1
+  LESSON_JSON=$(jq -c --arg selector "$selector" '
+    .lessons[]
+    | select(.id == $selector or .command == $selector or (.order | tostring) == $selector)
+  ' "$CATALOG" | head -n 1)
+  [[ -n $LESSON_JSON ]] || return 1
+  LESSON_ID=$(jq -r '.id' <<<"$LESSON_JSON")
+  LESSON_ORDER=$(jq -r '.order' <<<"$LESSON_JSON")
+  LESSON_COMMAND=$(jq -r '.command' <<<"$LESSON_JSON")
+  LESSON_SECTION=$(jq -r '.section' <<<"$LESSON_JSON")
+  LESSON_DIFFICULTY=$(jq -r '.difficulty // (if .order <= 30 then "foundation" elif .order <= 70 then "intermediate" else "advanced" end)' <<<"$LESSON_JSON")
+}
+
+next_incomplete_id() {
+  local id
+  while IFS= read -r id; do
+    if ! jq -e --arg id "$id" '.completed[$id] != null' "$PROGRESS_FILE" >/dev/null; then
+      printf '%s' "$id"
+      return
+    fi
+  done < <(jq -r '.lessons | sort_by(.order)[] | .id' "$CATALOG")
+}
+
+next_order_id() {
+  jq -r --argjson order "$LESSON_ORDER" '.lessons[] | select(.order == ($order + 1)) | .id' "$CATALOG"
+}
+
+safe_relative_path() {
+  local path=$1
+  [[ -n $path && $path != /* && $path != '..' && $path != ../* && $path != */../* && $path != */.. ]]
+}
+
+seed_workspace() {
+  [[ $(realpath -m "$WORKSPACE") == /work ]] || die "Refusing to reset an unexpected workspace path."
+  cd "$WORKSPACE" || die "Cannot enter the practice workspace."
+  umask 022
+  find "$WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+
+  local relative encoded destination
+  while IFS= read -r relative; do
+    [[ -n $relative ]] || continue
+    safe_relative_path "$relative" || die "Unsafe curriculum directory: $relative"
+    mkdir -p -- "$WORKSPACE/$relative"
+  done < <(jq -r '.directories[]? // empty' <<<"$LESSON_JSON")
+
+  while IFS=$'\t' read -r relative encoded; do
+    [[ -n $relative ]] || continue
+    safe_relative_path "$relative" || die "Unsafe curriculum file: $relative"
+    destination="$WORKSPACE/$relative"
+    mkdir -p -- "$(dirname -- "$destination")"
+    printf '%s' "$encoded" | base64 --decode >"$destination"
+  done < <(jq -r '.files | to_entries[] | [.key, (.value | @base64)] | @tsv' <<<"$LESSON_JSON")
+
+  : >"$LAST_OUT"
+  : >"$LAST_ERR"
+  LAST_RC=0
+}
+
+show_example() {
+  local output
+  printf '\n%sEXAMPLE%s\n  $ %s\n' "$BOLD" "$RESET" "$(jq -r '.example' <<<"$LESSON_JSON")"
+  jq -r '.breakdown[] | "  - " + .' <<<"$LESSON_JSON"
+  output=$(jq -r '.example_output' <<<"$LESSON_JSON")
+  if [[ -n $output ]]; then
+    printf '\n%sExample output%s\n%s\n' "$DIM" "$RESET" "$output"
+  else
+    printf '\n%sExample output: no output; the command changes state.%s\n' "$DIM" "$RESET"
+  fi
+}
+
+show_lesson() {
+  printf '\n%s========================================================================%s\n' "$CYAN" "$RESET"
+  printf '%sREP %03d/100 · %s · %s%s\n' "$BOLD" "$LESSON_ORDER" "$LESSON_DIFFICULTY" "$LESSON_COMMAND" "$RESET"
+  printf '%s%s%s\n' "$BOLD" "$(jq -r '.title' <<<"$LESSON_JSON")" "$RESET"
+  printf '%s========================================================================%s\n' "$CYAN" "$RESET"
+  jq -r '.about' <<<"$LESSON_JSON"
+  show_example
+  printf '\n%sYOUR MISSION%s\n%s\n' "$BOLD" "$RESET" "$(jq -r '.task' <<<"$LESSON_JSON")"
+  printf '%sWorkspace: %s · any Bash command or pipeline is allowed%s\n' "$DIM" "$WORKSPACE" "$RESET"
+  printf '%sUse :hint, :files, :reset, :shell, :check, :next, or :help.%s\n\n' "$DIM" "$RESET"
+}
+
+show_files() {
+  printf '%sWorkspace files%s\n' "$BOLD" "$RESET"
+  local listing
+  listing=$(find "$WORKSPACE" -mindepth 1 -printf '%P%y\n' | sort)
+  if [[ -z $listing ]]; then
+    printf '  (empty)\n'
+  else
+    while IFS= read -r item; do
+      if [[ ${item: -1} == d ]]; then
+        printf '  %s/\n' "${item::-1}"
+      else
+        printf '  %s\n' "${item::-1}"
+      fi
+    done <<<"$listing"
+  fi
+}
+
+normalize_value() {
+  local value=$1 mode=${2:-trim}
+  case "$mode" in
+    whitespace)
+      printf '%s' "$value" | sed -e 's/\r$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]][[:space:]]*/ /g'
+      ;;
+    exact)
+      printf '%s' "${value//$'\r'/}"
+      ;;
+    *)
+      printf '%s' "$value" | sed -e 's/\r$//' -e '1s/^[[:space:]]*//' -e '${s/[[:space:]]*$//;}'
+      ;;
+  esac
+}
+
+render_expected() {
+  local value=$1
+  printf '%s' "${value//\{\{workspace\}\}/$WORKSPACE}"
+}
+
+workspace_path() {
+  local relative=$1
+  safe_relative_path "$relative" || return 1
+  printf '%s/%s' "$WORKSPACE" "$relative"
+}
+
+evaluate_checks() {
+  local print_results=${1:-1}
+  local check type description expected mode path other_path kind actual normalized_actual normalized_expected regex
+  local passed failed=0
+
+  while IFS= read -r check; do
+    type=$(jq -r '.type' <<<"$check")
+    description=$(jq -r '.description' <<<"$check")
+    passed=0
+
+    case "$type" in
+      stdout)
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        mode=$(jq -r '.normalize // "trim"' <<<"$check")
+        actual=$(<"$LAST_OUT")
+        normalized_actual=$(normalize_value "$actual" "$mode")
+        normalized_expected=$(normalize_value "$expected" "$mode")
+        [[ $normalized_actual == "$normalized_expected" ]] && passed=1
+        ;;
+      stdout-unordered-lines)
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        actual=$(<"$LAST_OUT")
+        normalized_actual=$(normalize_value "$actual" | sed '/^[[:space:]]*$/d' | sort)
+        normalized_expected=$(normalize_value "$expected" | sed '/^[[:space:]]*$/d' | sort)
+        [[ $normalized_actual == "$normalized_expected" ]] && passed=1
+        ;;
+      stdout-contains)
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        actual=$(<"$LAST_OUT")
+        [[ $(normalize_value "$actual") == *"$(normalize_value "$expected")"* ]] && passed=1
+        ;;
+      output-contains)
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        actual="$(<"$LAST_OUT")"$'\n'"$(<"$LAST_ERR")"
+        [[ $(normalize_value "$actual") == *"$(normalize_value "$expected")"* ]] && passed=1
+        ;;
+      stderr-contains)
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        actual=$(<"$LAST_ERR")
+        [[ $(normalize_value "$actual") == *"$(normalize_value "$expected")"* ]] && passed=1
+        ;;
+      stdout-nonempty)
+        actual=$(<"$LAST_OUT")
+        [[ -n $(normalize_value "$actual") ]] && passed=1
+        ;;
+      stdout-regex)
+        regex=$(jq -r '.expected' <<<"$check")
+        regex=${regex//\\s/[[:space:]]}
+        actual=$(normalize_value "$(<"$LAST_OUT")")
+        [[ $actual =~ ^${regex}$ ]] && passed=1
+        ;;
+      path-exists)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        kind=$(jq -r '.kind // "any"' <<<"$check")
+        if [[ -e $path || -L $path ]]; then
+          case "$kind" in
+            file) [[ -f $path ]] && passed=1 ;;
+            directory) [[ -d $path ]] && passed=1 ;;
+            *) passed=1 ;;
+          esac
+        fi
+        ;;
+      path-not-exists)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        [[ ! -e $path && ! -L $path ]] && passed=1
+        ;;
+      file-content)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        mode=$(jq -r '.normalize // "trim"' <<<"$check")
+        if [[ -f $path ]]; then
+          actual=$(<"$path")
+          [[ $(normalize_value "$actual" "$mode") == "$(normalize_value "$expected" "$mode")" ]] && passed=1
+        fi
+        ;;
+      file-mode)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        expected=$(jq -r '.expected' <<<"$check")
+        [[ -e $path && $(stat -c '%a' "$path") == "$expected" ]] && passed=1
+        ;;
+      same-inode)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        other_path=$(workspace_path "$(jq -r '.other_path' <<<"$check")") || other_path=''
+        [[ -e $path && -e $other_path && $(stat -c '%d:%i' "$path") == "$(stat -c '%d:%i' "$other_path")" ]] && passed=1
+        ;;
+      same-owner)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        other_path=$(workspace_path "$(jq -r '.other_path' <<<"$check")") || other_path=''
+        [[ -e $path && -e $other_path && $(stat -c '%u' "$path") == "$(stat -c '%u' "$other_path")" ]] && passed=1
+        ;;
+      same-group)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        other_path=$(workspace_path "$(jq -r '.other_path' <<<"$check")") || other_path=''
+        [[ -e $path && -e $other_path && $(stat -c '%g' "$path") == "$(stat -c '%g' "$other_path")" ]] && passed=1
+        ;;
+      exit-code)
+        expected=$(jq -r '.expected' <<<"$check")
+        ((LAST_RC == expected)) && passed=1
+        ;;
+      *)
+        description="Unsupported check type: $type"
+        ;;
+    esac
+
+    if ((passed)); then
+      ((print_results)) && printf '%s[PASS]%s %s\n' "$GREEN" "$RESET" "$description"
+    else
+      ((failed += 1))
+      ((print_results)) && printf '%s[TRY ]%s %s\n' "$YELLOW" "$RESET" "$description"
+    fi
+  done < <(jq -c '.checks[]' <<<"$LESSON_JSON")
+
+  if ((failed == 0)); then
+    ALL_CHECKS_PASSED=1
+    return 0
+  fi
+  ALL_CHECKS_PASSED=0
+  return 1
+}
+
+run_command() {
+  local command_text=$1
+  : >"$LAST_OUT"
+  : >"$LAST_ERR"
+  eval "$command_text" >"$LAST_OUT" 2>"$LAST_ERR"
+  LAST_RC=$?
+  command cat "$LAST_OUT"
+  command cat "$LAST_ERR" >&2
+  printf '%s[exit %d]%s\n' "$DIM" "$LAST_RC" "$RESET"
+}
+
+read_command() {
+  local prompt=$1 continuation='...> ' line buffer
+  if [[ -t 0 ]]; then
+    IFS= read -e -r -p "$prompt" line || return 1
+  else
+    IFS= read -r line || return 1
+  fi
+  buffer=$line
+
+  while ! bash -n <<<"$buffer" 2>"$PARSE_ERR"; do
+    if ! grep -Eq 'unexpected end of file|unexpected EOF|here-document.*end-of-file' "$PARSE_ERR"; then
+      break
+    fi
+    if [[ -t 0 ]]; then
+      IFS= read -e -r -p "$continuation" line || return 1
+    else
+      IFS= read -r line || return 1
+    fi
+    buffer+=$'\n'"$line"
+  done
+  COMMAND_INPUT=$buffer
+}
+
+show_session_help() {
+  cat <<'HELP'
+Gym controls
+  :hint       reveal the next hint, then the reference approach
+  :example    repeat the annotated example
+  :files      show the current real files and directories
+  :reset      rebuild this rep's starting workspace
+  :check      grade the last output and current filesystem state
+  :shell      open an unwrapped interactive Bash subshell
+  :lesson     repeat the mission
+  :status     show XP, level, streak, and completion
+  :next       move to the next rep (unfinished reps stay unfinished)
+  :quit       leave the container
+
+Everything else is evaluated as Bash. Use any valid command, pipeline,
+redirect, variable, loop, function, or command sequence. Grading checks the
+result, not the text you typed. Restart the disposable container if you break it.
+HELP
+}
+
+show_status() {
+  local completed xp level rank streak
+  completed=$(jq '.completed | length' "$PROGRESS_FILE")
+  xp=$(total_xp)
+  level=$((xp / 500 + 1))
+  rank=$(rank_for_level "$level")
+  streak=$(streak_days)
+  printf '%sProgress%s  %d/100 reps · %d XP · Level %d %s · %d-day streak\n' "$BOLD" "$RESET" "$completed" "$xp" "$level" "$rank" "$streak"
+  jq -r --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
+    .lessons
+    | group_by(.section)[]
+    | . as $section
+    | ($section | map(select($completed[.id] != null)) | length) as $done
+    | "  \($section[0].section): \($done)/\($section | length)"
+  ' "$CATALOG"
+}
+
+list_reps() {
+  jq -r --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
+    .lessons | sort_by(.order)[]
+    | (if $completed[.id] != null then "✓" else "·" end) as $mark
+    | "\($mark) \(.order | tostring | if length < 3 then ("0" * (3 - length)) + . else . end)  \(.command) — \(.title)"
+  ' "$CATALOG"
+}
+
+interactive_lesson() {
+  local selector=$1 attempts=0 hints_used=0 hint_index=0 completed_here=0 command_text count hint xp level rank next
+  load_lesson "$selector" || die "Unknown rep '$selector'. Use 'gym list' to see valid IDs, numbers, and commands."
+  seed_workspace
+  show_lesson
+
+  if jq -e --arg id "$LESSON_ID" '.completed[$id] != null' "$PROGRESS_FILE" >/dev/null; then
+    printf '%sAlready completed; replay it freely. Your best score is retained.%s\n\n' "$DIM" "$RESET"
+  fi
+
+  if [[ -f $PROGRESS_DIR/history ]]; then
+    HISTFILE="$PROGRESS_DIR/history"
+    history -r
+  else
+    HISTFILE="$PROGRESS_DIR/history"
+  fi
+
+  while true; do
+    local shown_pwd=$PWD
+    if [[ $PWD == "$WORKSPACE" ]]; then
+      shown_pwd='~'
+    elif [[ $PWD == "$WORKSPACE/"* ]]; then
+      shown_pwd="~/${PWD#"$WORKSPACE/"}"
+    fi
+    read_command "${CYAN}gym[${LESSON_ORDER}]${RESET}:${shown_pwd}$ " || { printf '\nSession ended.\n'; return 0; }
+    command_text=$COMMAND_INPUT
+    [[ -n ${command_text//[[:space:]]/} ]] || continue
+    history -s "$command_text"
+    history -w
+
+    case "$command_text" in
+      :hint)
+        count=$(jq '.hints | length' <<<"$LESSON_JSON")
+        if ((hint_index < count)); then
+          hint=$(jq -r --argjson index "$hint_index" '.hints[$index]' <<<"$LESSON_JSON")
+          printf '%sHint %d:%s %s\n' "$YELLOW" "$((hint_index + 1))" "$RESET" "$hint"
+          ((hint_index += 1, hints_used += 1))
+        elif ((hint_index == count)); then
+          printf '%sReference approach:%s %s\n' "$YELLOW" "$RESET" "$(jq -r '.solution' <<<"$LESSON_JSON")"
+          ((hint_index += 1, hints_used += 1))
+        else
+          printf 'All hints have been shown.\n'
+        fi
+        ;;
+      :example) show_example ;;
+      :files) show_files ;;
+      :lesson) show_lesson ;;
+      :help) show_session_help ;;
+      :status) show_status ;;
+      :reset)
+        seed_workspace
+        completed_here=0
+        printf 'Workspace restored for rep %03d.\n' "$LESSON_ORDER"
+        ;;
+      :check)
+        printf '\n%sCHECK%s\n' "$BOLD" "$RESET"
+        if evaluate_checks 1 && ((completed_here == 0)); then
+          xp=$(mark_complete "$attempts" "$hints_used")
+          completed_here=1
+          level=$(($(total_xp) / 500 + 1))
+          rank=$(rank_for_level "$level")
+          printf '\n%sREP COMPLETE%s\n%s\n' "$GREEN$BOLD" "$RESET" "$(jq -r '.completion' <<<"$LESSON_JSON")"
+          printf 'XP: +%d · Total: %d · Level %d %s\n' "$xp" "$(total_xp)" "$level" "$rank"
+        fi
+        ;;
+      :shell)
+        printf '%sOpening raw Bash. Type exit to return to the gym and grade file changes.%s\n' "$DIM" "$RESET"
+        PS1='raw:\w# ' bash --noprofile --norc -i
+        printf '\n%sCHECK%s\n' "$BOLD" "$RESET"
+        evaluate_checks 1 || true
+        ;;
+      :next)
+        next=$(next_order_id)
+        if [[ -z $next ]]; then
+          printf 'That was rep 100. Nice work.\n'
+          return 0
+        fi
+        interactive_lesson "$next"
+        return
+        ;;
+      :quit|:q) return 0 ;;
+      :*) printf 'Unknown gym control. Use :help.\n' ;;
+      *)
+        ((attempts += 1))
+        run_command "$command_text"
+        printf '\n%sCHECK%s\n' "$BOLD" "$RESET"
+        if evaluate_checks 1; then
+          if ((completed_here == 0)); then
+            xp=$(mark_complete "$attempts" "$hints_used")
+            completed_here=1
+            level=$(($(total_xp) / 500 + 1))
+            rank=$(rank_for_level "$level")
+            printf '\n%sREP COMPLETE%s\n%s\n' "$GREEN$BOLD" "$RESET" "$(jq -r '.completion' <<<"$LESSON_JSON")"
+            printf 'Attempts: %d · Hints: %d · XP: +%d · Total: %d · Level %d %s\n' "$attempts" "$hints_used" "$xp" "$(total_xp)" "$level" "$rank"
+            printf 'Use :next when you are ready for rep %03d.\n' "$((LESSON_ORDER + 1))"
+          fi
+        else
+          printf '%sAny valid approach can pass. Keep working or use :hint.%s\n' "$DIM" "$RESET"
+        fi
+        ;;
+    esac
+  done
+}
+
+test_catalog() {
+  jq -e '
+    .catalog_version == 1
+    and .track == "linux"
+    and (.lessons | length == 100)
+    and ([.lessons[].order] == [range(1; 101)])
+    and ([.lessons[].id] | unique | length == 100)
+    and ([.lessons[].command] | unique | length == 100)
+    and ([.lessons | group_by(.section)[] | length] | all(. == 10))
+    and (.lessons | all(
+      has("id") and has("order") and has("section") and has("command")
+      and has("title") and has("about") and has("example") and has("task")
+      and has("solution") and has("files") and has("checks") and has("completion")
+      and (has("allowed") | not) and (has("operators") | not)
+    ))
+    and ([.lessons[].checks[].type] - [
+      "stdout", "stdout-unordered-lines", "stdout-contains", "output-contains",
+      "stderr-contains", "stdout-nonempty", "stdout-regex", "path-exists",
+      "path-not-exists", "file-content", "file-mode", "same-inode",
+      "same-owner", "same-group", "exit-code"
+    ] | length == 0)
+    and (.lessons | all(
+      [(.directories[]? // empty), (.files | keys[]), (.checks[]?.path // empty), (.checks[]?.other_path // empty)]
+      | all((startswith("/") or contains("..")) | not)
+    ))
+  ' "$CATALOG" >/dev/null
+}
+
+test_reference_solutions() {
+  local id solution failures=0
+  printf 'Checking curriculum structure... '
+  if test_catalog; then
+    printf '%sPASS%s\n' "$GREEN" "$RESET"
+  else
+    printf '%sFAIL%s\n' "$RED" "$RESET"
+    return 1
+  fi
+
+  printf 'Running all 100 reference approaches in real Bash...\n'
+  while IFS= read -r id; do
+    load_lesson "$id"
+    seed_workspace
+    solution=$(jq -r '.solution' <<<"$LESSON_JSON")
+    : >"$LAST_OUT"
+    : >"$LAST_ERR"
+    eval "$solution" >"$LAST_OUT" 2>"$LAST_ERR"
+    LAST_RC=$?
+    if evaluate_checks 0; then
+      printf '  %sPASS%s %03d %s\n' "$GREEN" "$RESET" "$LESSON_ORDER" "$LESSON_COMMAND"
+    else
+      ((failures += 1))
+      printf '  %sFAIL%s %03d %s\n' "$RED" "$RESET" "$LESSON_ORDER" "$LESSON_COMMAND"
+      printf '       solution: %s\n' "$solution"
+      printf '       stdout: %q\n' "$(<"$LAST_OUT")"
+      printf '       stderr: %q\n' "$(<"$LAST_ERR")"
+      printf '       exit: %d\n' "$LAST_RC"
+    fi
+  done < <(jq -r '.lessons | sort_by(.order)[] | .id' "$CATALOG")
+
+  if ((failures)); then
+    printf '%s%d reference approach(es) failed.%s\n' "$RED" "$failures" "$RESET"
+    return 1
+  fi
+  printf '%sAll 100 reference approaches passed.%s\n' "$GREEN" "$RESET"
+}
+
+show_help() {
+  cat <<'HELP'
+Hacker CLI Gym — a disposable, outcome-graded Linux command line
+
+Usage inside the image:
+  gym start          start the next unfinished rep
+  gym run awk        run by command, number, or lesson ID
+  gym list           list all 100 reps
+  gym status         show progress, XP, level, and streak
+  gym test           validate and execute all reference approaches
+  gym help           show this help
+
+On the host, use ./gym with the same arguments. Run ./gym build to rebuild.
+HELP
+}
+
+main() {
+  progress_init
+  case "${1:-start}" in
+    start|daily)
+      local next
+      next=$(next_incomplete_id)
+      if [[ -z $next ]]; then
+        printf 'All 100 reps are complete. Use "./gym run awk" to replay one.\n'
+        show_status
+      else
+        interactive_lesson "$next"
+      fi
+      ;;
+    run)
+      [[ -n ${2:-} ]] || die "Usage: gym run <number|command|lesson-id>"
+      interactive_lesson "$2"
+      ;;
+    list) list_reps ;;
+    status) show_status ;;
+    test) test_reference_solutions ;;
+    help|-h|--help) show_help ;;
+    *) die "Unknown command '$1'. Use gym help." ;;
+  esac
+}
+
+main "$@"

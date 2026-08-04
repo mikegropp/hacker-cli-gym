@@ -1,0 +1,14 @@
+services:
+  gym:
+    build:
+      context: .
+    image: hacker-cli-gym:local
+    stdin_open: true
+    tty: true
+    network_mode: none
+    volumes:
+      - gym-progress:/var/lib/hacker-cli-gym
+
+volumes:
+  gym-progress:
+    name: hacker-cli-gym-progress
