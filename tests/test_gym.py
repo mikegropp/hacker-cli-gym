@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from hacker_cli_gym.content import compatible_lessons, load_lessons
 from hacker_cli_gym.execution import (
@@ -227,6 +230,37 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(UnsafeCommand):
             check_command("Invoke-Command -ScriptBlock { Get-Process }", lesson)
         check_command("Invoke-Command -ScriptBlock { 2 + 3 }", lesson)
+
+
+class ExecutionEnvironmentTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.lesson = next(
+            item for item in load_lessons() if item.id == "powershell-get-help"
+        )
+
+    def test_windows_powershell_builds_its_native_module_path(self) -> None:
+        completed = SimpleNamespace(stdout="", stderr="", returncode=0)
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name).resolve()
+            with (
+                patch.dict(os.environ, {"PSModulePath": "pwsh-only-modules"}),
+                patch(
+                    "hacker_cli_gym.execution.shell_command",
+                    return_value=["powershell.exe", "-Command"],
+                ),
+                patch(
+                    "hacker_cli_gym.execution.subprocess.run",
+                    return_value=completed,
+                ) as mocked_run,
+            ):
+                run_command("Get-Help Get-Help", self.lesson, workspace)
+
+        child_environment = mocked_run.call_args.kwargs["env"]
+        self.assertNotIn(
+            "psmodulepath",
+            {key.casefold() for key in child_environment},
+        )
 
 
 class ProgressTests(unittest.TestCase):

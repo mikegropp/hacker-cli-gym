@@ -157,6 +157,7 @@ def _validate_special_command(command_name: str, tokens: list[str], lesson: Less
             member_index = folded_arguments.index("-membername") + 1
             if member_index >= len(arguments) or arguments[member_index].casefold() not in {
                 "tolower",
+                "tostring",
                 "toupper",
                 "trim",
             }:
@@ -394,7 +395,6 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
     inherited_keys = (
         "COMSPEC",
         "PATHEXT",
-        "PSModulePath",
         "SystemDrive",
         "SystemRoot",
         "WINDIR",

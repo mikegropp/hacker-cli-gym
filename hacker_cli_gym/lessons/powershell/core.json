@@ -48,7 +48,7 @@
       "id": "powershell-get-childitem", "order": 6, "section": "01-discovery-and-navigation", "command": "Get-ChildItem", "title": "List child items",
       "about": "Get-ChildItem enumerates files, directories, registry keys, variables, and other provider-backed collections.",
       "example": "Get-ChildItem -Name", "example_output": "alpha.txt\nbeta.txt", "breakdown": ["Without a path, the current location is listed.", "-Name returns compact names instead of FileInfo objects."],
-      "task": "Print only the names of the two files in the practice directory.", "solution": "Get-ChildItem -Name", "hints": ["Use the switch that requests names only."],
+      "task": "Print only the names of the two files in the practice directory.", "solution": "Get-ChildItem -File -Name", "hints": ["Combine the switches that select files and request names only."],
       "files": {"alpha.txt": "a\n", "beta.txt": "b\n"}, "allowed": ["Get-ChildItem"], "checks": [{"type": "stdout-unordered-lines", "description": "Both file names and no extras were printed.", "expected": "alpha.txt\nbeta.txt"}],
       "completion": "Get-ChildItem is PowerShell's general collection enumerator."
     },

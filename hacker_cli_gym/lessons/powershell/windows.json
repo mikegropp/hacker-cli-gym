@@ -200,8 +200,8 @@
       "id": "powershell-get-host", "order": 75, "section": "08-system-and-storage", "command": "Get-Host", "title": "Inspect the PowerShell host",
       "about": "Get-Host returns information about the application hosting the PowerShell engine, including its version and capabilities.",
       "example": "Get-Host", "example_output": "Name : ConsoleHost\nVersion : 5.1...", "breakdown": ["The host is separate from the operating system.", "Version identifies the PowerShell host version."],
-      "task": "Print the current host version as text.", "solution": "Get-Host | Select-Object -ExpandProperty Version | Out-String", "hints": ["Expand Version, then render it with Out-String."],
-      "files": {}, "allowed": ["Get-Host", "Select-Object", "Out-String"], "checks": [{"type": "stdout-regex", "description": "A dotted PowerShell host version was printed.", "expected": "[0-9]+(?:\\.[0-9]+)+"}],
+      "task": "Print the current host version as dotted text.", "solution": "Get-Host | Select-Object -ExpandProperty Version | ForEach-Object -MemberName ToString", "hints": ["Expand Version, then call its safe ToString member through ForEach-Object."],
+      "files": {}, "allowed": ["Get-Host", "Select-Object", "ForEach-Object"], "checks": [{"type": "stdout-regex", "description": "A dotted PowerShell host version was printed.", "expected": "[0-9]+(?:\\.[0-9]+)+"}],
       "completion": "Host and engine versions help explain feature and behavior differences between environments."
     },
     {

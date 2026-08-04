@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import shutil
 import subprocess
@@ -95,6 +96,10 @@ def _available_commands(lessons: list[Lesson]) -> set[str]:
             "if (Get-Command -Name $command -ErrorAction SilentlyContinue) { "
             "Write-Output $command } }"
         )
+    environment = os.environ.copy()
+    for key in tuple(environment):
+        if key.casefold() == "psmodulepath":
+            environment.pop(key)
     try:
         result = subprocess.run(
             [*invocation, probe],
@@ -104,6 +109,7 @@ def _available_commands(lessons: list[Lesson]) -> set[str]:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=environment,
             timeout=30,
             check=False,
         )
