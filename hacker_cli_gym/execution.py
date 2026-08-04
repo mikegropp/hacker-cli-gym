@@ -395,6 +395,7 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
         "COMSPEC",
         "LOCALAPPDATA",
         "PATHEXT",
+        "PSModulePath",
         "ProgramData",
         "ProgramFiles",
         "ProgramFiles(x86)",

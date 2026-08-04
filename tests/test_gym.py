@@ -274,7 +274,7 @@ class GuardTests(unittest.TestCase):
 
 
 class ExecutionEnvironmentTests(unittest.TestCase):
-    def test_windows_powershell_builds_its_native_module_path(self) -> None:
+    def test_windows_powershell_keeps_its_native_module_path(self) -> None:
         lesson = next(
             item for item in load_lessons() if item.id == "powershell-get-disk"
         )
@@ -284,8 +284,9 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             "LOCALAPPDATA": r"C:\Users\runner\AppData\Local",
             "PATH": r"C:\Windows\System32",
             "PSModulePath": (
-                r"C:\Users\runner\Documents\PowerShell\Modules;"
-                r"C:\Program Files\PowerShell\7\Modules"
+                r"C:\Users\runner\Documents\WindowsPowerShell\Modules;"
+                r"C:\Program Files\WindowsPowerShell\Modules;"
+                r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
             ),
             "ProgramData": r"C:\ProgramData",
             "ProgramFiles": r"C:\Program Files",
@@ -309,7 +310,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
                 result = run_command(command, lesson, workspace)
 
         child_environment = mocked_run.call_args.kwargs["env"]
-        self.assertNotIn("PSModulePath", child_environment)
+        self.assertEqual(host_environment["PSModulePath"], child_environment["PSModulePath"])
         self.assertEqual(host_environment["LOCALAPPDATA"], child_environment["LOCALAPPDATA"])
         self.assertEqual(str(workspace), child_environment["USERPROFILE"])
         self.assertEqual(command, mocked_run.call_args.args[0][-1])
