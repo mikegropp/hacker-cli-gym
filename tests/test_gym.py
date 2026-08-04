@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -28,6 +29,24 @@ def reference_command(lesson) -> str:
         if hint.startswith(prefix):
             return hint[len(prefix) :]
     raise AssertionError(f"{lesson.id} does not end with a Type: reference hint")
+
+
+def exercise_reference_solution(lesson) -> str | None:
+    """Run one reference solution in its own disposable workspace."""
+    command = reference_command(lesson)
+    check_command(command, lesson)
+    with tempfile.TemporaryDirectory() as temp_name:
+        workspace = Path(temp_name).resolve()
+        seed_workspace(lesson, workspace)
+        result = run_command(command, lesson, workspace)
+        checks = evaluate_lesson(lesson, result, workspace)
+        failures = [item.description for item in checks if not item.passed]
+        if not failures:
+            return None
+        return (
+            f"{lesson.id} failed: {failures}; stdout={result.stdout!r}; "
+            f"stderr={result.stderr!r}; exit={result.returncode}"
+        )
 
 
 class CatalogTests(unittest.TestCase):
@@ -96,21 +115,15 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual([], list((workspace / "retired").iterdir()))
 
     def test_every_native_reference_solution_passes_in_its_shell(self) -> None:
-        for lesson in compatible_lessons(self.lessons):
+        lessons = compatible_lessons(self.lessons)
+        worker_count = min(8, len(lessons)) if os.name == "nt" and lessons else 1
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            failures = executor.map(exercise_reference_solution, lessons)
+            results = list(zip(lessons, failures))
+
+        for lesson, failure in results:
             with self.subTest(lesson=lesson.id):
-                command = reference_command(lesson)
-                check_command(command, lesson)
-                with tempfile.TemporaryDirectory() as temp_name:
-                    workspace = Path(temp_name).resolve()
-                    seed_workspace(lesson, workspace)
-                    result = run_command(command, lesson, workspace)
-                    checks = evaluate_lesson(lesson, result, workspace)
-                    failures = [item.description for item in checks if not item.passed]
-                    self.assertFalse(
-                        failures,
-                        f"{lesson.id} failed: {failures}; stdout={result.stdout!r}; "
-                        f"stderr={result.stderr!r}; exit={result.returncode}",
-                    )
+                self.assertIsNone(failure, failure)
 
 
 class GuardTests(unittest.TestCase):
