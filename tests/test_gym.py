@@ -5,7 +5,6 @@ import os
 import tempfile
 import unittest
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -47,6 +46,20 @@ def exercise_reference_solution(lesson) -> str | None:
             f"{lesson.id} failed: {failures}; stdout={result.stdout!r}; "
             f"stderr={result.stderr!r}; exit={result.returncode}"
         )
+
+
+def sharded_reference_lessons(lessons, platform_name: str | None = None):
+    compatible = compatible_lessons(lessons, platform_name)
+    try:
+        shard_count = int(os.environ.get("HACKER_CLI_GYM_TEST_SHARD_COUNT", "1"))
+        shard_index = int(os.environ.get("HACKER_CLI_GYM_TEST_SHARD_INDEX", "0"))
+    except ValueError as exc:
+        raise AssertionError("Reference-test shard values must be integers.") from exc
+    if shard_count < 1:
+        raise AssertionError("Reference-test shard count must be positive.")
+    if not 0 <= shard_index < shard_count:
+        raise AssertionError("Reference-test shard index is outside the shard count.")
+    return compatible[shard_index::shard_count]
 
 
 class CatalogTests(unittest.TestCase):
@@ -115,15 +128,30 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual([], list((workspace / "retired").iterdir()))
 
     def test_every_native_reference_solution_passes_in_its_shell(self) -> None:
-        lessons = compatible_lessons(self.lessons)
-        worker_count = min(8, len(lessons)) if os.name == "nt" and lessons else 1
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            failures = executor.map(exercise_reference_solution, lessons)
-            results = list(zip(lessons, failures))
-
-        for lesson, failure in results:
+        for lesson in sharded_reference_lessons(self.lessons):
             with self.subTest(lesson=lesson.id):
+                failure = exercise_reference_solution(lesson)
                 self.assertIsNone(failure, failure)
+
+    def test_four_shards_cover_each_powershell_lesson_once(self) -> None:
+        selected_ids: list[str] = []
+        for shard_index in range(4):
+            with patch.dict(
+                os.environ,
+                {
+                    "HACKER_CLI_GYM_TEST_SHARD_COUNT": "4",
+                    "HACKER_CLI_GYM_TEST_SHARD_INDEX": str(shard_index),
+                },
+            ):
+                shard = sharded_reference_lessons(self.lessons, "windows")
+            self.assertEqual(25, len(shard))
+            selected_ids.extend(lesson.id for lesson in shard)
+
+        expected_ids = [
+            lesson.id for lesson in compatible_lessons(self.lessons, "windows")
+        ]
+        self.assertCountEqual(expected_ids, selected_ids)
+        self.assertEqual(len(selected_ids), len(set(selected_ids)))
 
 
 class GuardTests(unittest.TestCase):
@@ -360,9 +388,13 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             available = _available_commands([self.lesson])
 
         self.assertEqual({"Get-Help"}, available)
+        doctor_environment = {
+            key.casefold(): value
+            for key, value in mocked_run.call_args.kwargs["env"].items()
+        }
         self.assertEqual(
             pwsh_module_path,
-            mocked_run.call_args.kwargs["env"]["PSModulePath"],
+            doctor_environment["psmodulepath"],
         )
         rendered_probe = mocked_run.call_args.args[0][-1]
         self.assertTrue(rendered_probe.startswith("$env:PSModulePath = '"))
