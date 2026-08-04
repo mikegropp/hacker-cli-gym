@@ -233,6 +233,7 @@ class GuardTests(unittest.TestCase):
             ("powershell-get-content", "Get-Content C:\\Windows\\win.ini"),
             ("powershell-get-content", "Get-Content ..\\answer.txt"),
             ("powershell-get-content", "Get-Content $HOME\\answer.txt"),
+            ("powershell-get-content", "Get-Content $env:HOME\\answer.txt"),
             ("powershell-get-content", "Get-Content $env:USERPROFILE\\answer.txt"),
             ("powershell-remove-item", "Remove-Item $env:SystemRoot"),
             ("powershell-get-variable", "Get-Variable | ForEach-Object { $_.Name }"),
@@ -283,6 +284,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         completed = SimpleNamespace(stdout="0\n", stderr="", returncode=0)
         host_environment = {
             "APPDATA": r"C:\Users\runner\AppData\Roaming",
+            "HOME": r"C:\Users\runner",
             "LOCALAPPDATA": r"C:\Users\runner\AppData\Local",
             "PATH": r"C:\Windows\System32",
             "PSModulePath": (
@@ -316,8 +318,10 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertEqual(host_environment["PSModulePath"], child_environment["PSModulePath"])
         self.assertEqual(host_environment["LOCALAPPDATA"], child_environment["LOCALAPPDATA"])
         self.assertEqual(host_environment["USERPROFILE"], child_environment["USERPROFILE"])
-        self.assertEqual(str(workspace), child_environment["HOME"])
+        self.assertEqual(host_environment["HOME"], child_environment["HOME"])
         self.assertEqual(str(workspace), child_environment["TEMP"])
+        self.assertEqual(str(workspace), child_environment["TMP"])
+        self.assertNotIn("LC_ALL", child_environment)
         self.assertEqual(command, mocked_run.call_args.args[0][-1])
         self.assertEqual("0\n", result.stdout)
 

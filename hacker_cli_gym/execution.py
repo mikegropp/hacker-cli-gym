@@ -283,7 +283,6 @@ def check_command(command: str, lesson: Lesson) -> None:
             "$pid",
             "$null",
             "$pwd",
-            "$env:home",
             "$env:temp",
             "$env:tmp",
         }
@@ -388,42 +387,43 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
     if invocation is None:
         raise RuntimeError(f"Required shell is unavailable for {lesson.id}: {lesson.shell}")
 
-    inherited_keys = (
-        "APPDATA",
-        "COMSPEC",
-        "LOCALAPPDATA",
-        "PATHEXT",
-        "PSModulePath",
-        "ProgramData",
-        "ProgramFiles",
-        "ProgramFiles(x86)",
-        "SystemDrive",
-        "SystemRoot",
-        "WINDIR",
-    )
-    environment = {
-        key: os.environ[key]
-        for key in inherited_keys
-        if key in os.environ
-    }
-    environment.update(
-        {
-            "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-            "HACKER_CLI_GYM": "1",
-            "HOME": str(workspace),
-            "USERPROFILE": (
-                os.environ.get("USERPROFILE", str(workspace))
-                if lesson.shell == "powershell"
-                else str(workspace)
-            ),
-            "TEMP": str(workspace),
-            "TMP": str(workspace),
-            "LC_ALL": "C",
-            "LANG": "C",
-            "LESSSECURE": "1",
-            "PAGER": "cat",
+    if lesson.shell == "powershell":
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "HACKER_CLI_GYM": "1",
+                "TEMP": str(workspace),
+                "TMP": str(workspace),
+            }
+        )
+    else:
+        inherited_keys = (
+            "COMSPEC",
+            "PATHEXT",
+            "PSModulePath",
+            "SystemDrive",
+            "SystemRoot",
+            "WINDIR",
+        )
+        environment = {
+            key: os.environ[key]
+            for key in inherited_keys
+            if key in os.environ
         }
-    )
+        environment.update(
+            {
+                "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+                "HACKER_CLI_GYM": "1",
+                "HOME": str(workspace),
+                "USERPROFILE": str(workspace),
+                "TEMP": str(workspace),
+                "TMP": str(workspace),
+                "LC_ALL": "C",
+                "LANG": "C",
+                "LESSSECURE": "1",
+                "PAGER": "cat",
+            }
+        )
     try:
         completed = subprocess.run(
             [*invocation, command],
