@@ -89,7 +89,7 @@ def _looks_outside_workspace(raw_token: str) -> bool:
     if re.match(r"^[A-Za-z]:[\\/]", token):
         return True
     if re.match(
-        r"^(?:HKLM|HKCU|Registry|Cert|WSMan|Function|Alias):",
+        r"^(?:HKLM|HKCU|Registry|Cert|WSMan|Function|Alias|Env):",
         token,
         re.IGNORECASE,
     ):
@@ -282,10 +282,8 @@ def check_command(command: str, lesson: Lesson) -> None:
         safe_variables = {
             "$pid",
             "$null",
-            "$home",
             "$pwd",
             "$env:home",
-            "$env:userprofile",
             "$env:temp",
             "$env:tmp",
         }
@@ -413,7 +411,11 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
             "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
             "HACKER_CLI_GYM": "1",
             "HOME": str(workspace),
-            "USERPROFILE": str(workspace),
+            "USERPROFILE": (
+                os.environ.get("USERPROFILE", str(workspace))
+                if lesson.shell == "powershell"
+                else str(workspace)
+            ),
             "TEMP": str(workspace),
             "TMP": str(workspace),
             "LC_ALL": "C",

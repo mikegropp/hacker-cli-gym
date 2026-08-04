@@ -232,6 +232,8 @@ class GuardTests(unittest.TestCase):
             ("powershell-write-output", "Invoke-Expression 'Get-Date'"),
             ("powershell-get-content", "Get-Content C:\\Windows\\win.ini"),
             ("powershell-get-content", "Get-Content ..\\answer.txt"),
+            ("powershell-get-content", "Get-Content $HOME\\answer.txt"),
+            ("powershell-get-content", "Get-Content $env:USERPROFILE\\answer.txt"),
             ("powershell-remove-item", "Remove-Item $env:SystemRoot"),
             ("powershell-get-variable", "Get-Variable | ForEach-Object { $_.Name }"),
             ("powershell-sort-object", "Get-Content hosts.txt | Sort-Object { Get-Date }"),
@@ -291,6 +293,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             "ProgramData": r"C:\ProgramData",
             "ProgramFiles": r"C:\Program Files",
             "SystemRoot": r"C:\Windows",
+            "USERPROFILE": r"C:\Users\runner",
         }
         command = "Get-Disk | Select-Object -First 1 -ExpandProperty Number"
 
@@ -312,7 +315,9 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         child_environment = mocked_run.call_args.kwargs["env"]
         self.assertEqual(host_environment["PSModulePath"], child_environment["PSModulePath"])
         self.assertEqual(host_environment["LOCALAPPDATA"], child_environment["LOCALAPPDATA"])
-        self.assertEqual(str(workspace), child_environment["USERPROFILE"])
+        self.assertEqual(host_environment["USERPROFILE"], child_environment["USERPROFILE"])
+        self.assertEqual(str(workspace), child_environment["HOME"])
+        self.assertEqual(str(workspace), child_environment["TEMP"])
         self.assertEqual(command, mocked_run.call_args.args[0][-1])
         self.assertEqual("0\n", result.stdout)
 
