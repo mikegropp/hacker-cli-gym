@@ -174,7 +174,7 @@ seed_workspace() {
   umask 022
   find "$WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
-  local relative encoded destination
+  local relative encoded destination target
   while IFS= read -r relative; do
     [[ -n $relative ]] || continue
     safe_relative_path "$relative" || die "Unsafe curriculum directory: $relative"
@@ -188,6 +188,16 @@ seed_workspace() {
     mkdir -p -- "$(dirname -- "$destination")"
     printf '%s' "$encoded" | base64 --decode >"$destination"
   done < <(jq -r '.files | to_entries[] | [.key, (.value | @base64)] | @tsv' <<<"$LESSON_JSON")
+
+  while IFS=$'\t' read -r relative encoded; do
+    [[ -n $relative ]] || continue
+    safe_relative_path "$relative" || die "Unsafe curriculum symlink: $relative"
+    target=$(printf '%s' "$encoded" | base64 --decode)
+    safe_relative_path "$target" || die "Unsafe curriculum symlink target: $target"
+    destination="$WORKSPACE/$relative"
+    mkdir -p -- "$(dirname -- "$destination")"
+    ln -s -- "$target" "$destination" || die "Cannot create curriculum symlink: $relative"
+  done < <(jq -r '(.symlinks // {}) | to_entries[] | [.key, (.value | @base64)] | @tsv' <<<"$LESSON_JSON")
 
   : >"$LAST_OUT"
   : >"$LAST_ERR"
@@ -220,18 +230,17 @@ show_lesson() {
 
 show_files() {
   printf '%sWorkspace files%s\n' "$BOLD" "$RESET"
-  local listing
-  listing=$(find "$WORKSPACE" -mindepth 1 -printf '%P%y\n' | sort)
-  if [[ -z $listing ]]; then
+  local relative type found=0
+  while IFS=$'\t' read -r -d '' relative type; do
+    found=1
+    case "$type" in
+      d) printf '  %s/\n' "$relative" ;;
+      l) printf '  %s -> %s\n' "$relative" "$(readlink -- "$WORKSPACE/$relative")" ;;
+      *) printf '  %s\n' "$relative" ;;
+    esac
+  done < <(find "$WORKSPACE" -mindepth 1 -printf '%P\t%y\0' | sort -z)
+  if ((found == 0)); then
     printf '  (empty)\n'
-  else
-    while IFS= read -r item; do
-      if [[ ${item: -1} == d ]]; then
-        printf '  %s/\n' "${item::-1}"
-      else
-        printf '  %s\n' "${item::-1}"
-      fi
-    done <<<"$listing"
   fi
 }
 
@@ -586,7 +595,14 @@ test_catalog() {
       "same-owner", "same-group", "exit-code"
     ] | length == 0)
     and (.lessons | all(
-      [(.directories[]? // empty), (.files | keys[]), (.checks[]?.path // empty), (.checks[]?.other_path // empty)]
+      [
+        (.directories[]? // empty),
+        (.files | keys[]),
+        ((.symlinks // {}) | keys[]),
+        ((.symlinks // {})[]),
+        (.checks[]?.path // empty),
+        (.checks[]?.other_path // empty)
+      ]
       | all((startswith("/") or contains("..")) | not)
     ))
   ' "$CATALOG" >/dev/null
