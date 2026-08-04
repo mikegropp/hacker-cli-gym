@@ -327,9 +327,9 @@
     {
       "id": "powershell-get-variable", "order": 41, "section": "05-variables-and-formatting", "command": "Get-Variable", "title": "Inspect a variable",
       "about": "Get-Variable returns variable metadata or, with -ValueOnly, the value stored in a named PowerShell variable.",
-      "example": "Get-Variable HOME -ValueOnly", "example_output": "C:\\Users\\student", "breakdown": ["HOME names the variable without a dollar sign.", "-ValueOnly emits its stored value."],
-      "task": "Print only the HOME variable value for this disposable rep.", "solution": "Get-Variable HOME -ValueOnly", "hints": ["Use the variable name without $."],
-      "files": {}, "allowed": ["Get-Variable"], "checks": [{"type": "stdout", "description": "The temporary HOME value was printed.", "expected": "{{workspace}}"}],
+      "example": "Get-Variable PWD -ValueOnly", "example_output": "Path\n----\nC:\\practice", "breakdown": ["PWD names the current-location variable without a dollar sign.", "-ValueOnly emits its PathInfo value."],
+      "task": "Read PWD and print only its Path property for this disposable rep.", "solution": "Get-Variable PWD -ValueOnly | Select-Object -ExpandProperty Path", "hints": ["Use PWD without $, then expand the Path property."],
+      "files": {}, "allowed": ["Get-Variable", "Select-Object"], "checks": [{"type": "stdout", "description": "The disposable workspace path was printed.", "expected": "{{workspace}}"}],
       "completion": "Get-Variable can inspect scope, options, descriptions, and values without dynamic evaluation."
     },
     {

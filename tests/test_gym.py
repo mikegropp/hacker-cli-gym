@@ -314,14 +314,17 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             ):
                 result = run_command(command, lesson, workspace)
 
-        child_environment = mocked_run.call_args.kwargs["env"]
-        self.assertEqual(host_environment["PSModulePath"], child_environment["PSModulePath"])
-        self.assertEqual(host_environment["LOCALAPPDATA"], child_environment["LOCALAPPDATA"])
-        self.assertEqual(host_environment["USERPROFILE"], child_environment["USERPROFILE"])
-        self.assertEqual(host_environment["HOME"], child_environment["HOME"])
-        self.assertEqual(str(workspace), child_environment["TEMP"])
-        self.assertEqual(str(workspace), child_environment["TMP"])
-        self.assertNotIn("LC_ALL", child_environment)
+        child_environment = {
+            key.casefold(): value
+            for key, value in mocked_run.call_args.kwargs["env"].items()
+        }
+        self.assertEqual(host_environment["PSModulePath"], child_environment["psmodulepath"])
+        self.assertEqual(host_environment["LOCALAPPDATA"], child_environment["localappdata"])
+        self.assertEqual(host_environment["USERPROFILE"], child_environment["userprofile"])
+        self.assertEqual(host_environment["HOME"], child_environment["home"])
+        self.assertEqual(str(workspace), child_environment["temp"])
+        self.assertEqual(str(workspace), child_environment["tmp"])
+        self.assertNotIn("lc_all", child_environment)
         self.assertEqual(command, mocked_run.call_args.args[0][-1])
         self.assertEqual("0\n", result.stdout)
 
