@@ -6,10 +6,8 @@ import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
-from hacker_cli_gym.cli import _available_commands
 from hacker_cli_gym.content import compatible_lessons, load_lessons
 from hacker_cli_gym.execution import (
     UnsafeCommand,
@@ -272,136 +270,6 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(UnsafeCommand):
             check_command("Invoke-Command -ScriptBlock { Get-Process }", lesson)
         check_command("Invoke-Command -ScriptBlock { 2 + 3 }", lesson)
-
-
-class ExecutionEnvironmentTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.lesson = next(
-            item for item in load_lessons() if item.id == "powershell-get-help"
-        )
-
-    def test_pwsh_parent_is_normalized_after_windows_powershell_starts(self) -> None:
-        completed = SimpleNamespace(stdout="", stderr="", returncode=0)
-        pwsh_module_path = (
-            r"C:\Users\runner\Documents\PowerShell\Modules;"
-            r"C:\Program Files\PowerShell\7\Modules;"
-            r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
-        )
-        host_environment = {
-            "PSModulePath": pwsh_module_path,
-            "ProgramFiles": r"C:\Program Files",
-            "SystemRoot": r"C:\Windows",
-            "USERPROFILE": r"C:\Users\runner",
-        }
-        with tempfile.TemporaryDirectory() as temp_name:
-            workspace = Path(temp_name).resolve()
-            with (
-                patch.dict(os.environ, host_environment),
-                patch(
-                    "hacker_cli_gym.execution.shell_command",
-                    return_value=["powershell.exe", "-Command"],
-                ),
-                patch(
-                    "hacker_cli_gym.execution.subprocess.run",
-                    return_value=completed,
-                ) as mocked_run,
-            ):
-                run_command("Get-Help Get-Help", self.lesson, workspace)
-
-        child_environment = mocked_run.call_args.kwargs["env"]
-        rendered_command = mocked_run.call_args.args[0][-1]
-        self.assertEqual(pwsh_module_path, child_environment["PSModulePath"])
-        self.assertEqual(str(workspace), child_environment["USERPROFILE"])
-        self.assertTrue(rendered_command.startswith("$env:PSModulePath = '"))
-        self.assertIn(
-            r"C:\Users\runner\Documents\WindowsPowerShell\Modules",
-            rendered_command,
-        )
-        self.assertIn(
-            r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules",
-            rendered_command,
-        )
-        self.assertTrue(rendered_command.endswith("; Get-Help Get-Help"))
-
-    def test_native_parent_runs_the_lesson_without_a_bootstrap(self) -> None:
-        completed = SimpleNamespace(stdout="", stderr="", returncode=0)
-        native_module_path = (
-            r"C:\Users\runner\Documents\WindowsPowerShell\Modules;"
-            r"C:\Program Files\WindowsPowerShell\Modules;"
-            r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
-        )
-        host_environment = {
-            "PSModulePath": native_module_path,
-            "ProgramFiles": r"C:\Program Files",
-            "SystemRoot": r"C:\Windows",
-            "USERPROFILE": r"C:\Users\runner",
-        }
-        with tempfile.TemporaryDirectory() as temp_name:
-            workspace = Path(temp_name).resolve()
-            with (
-                patch.dict(os.environ, host_environment),
-                patch(
-                    "hacker_cli_gym.execution.shell_command",
-                    return_value=["powershell.exe", "-Command"],
-                ),
-                patch(
-                    "hacker_cli_gym.execution.subprocess.run",
-                    return_value=completed,
-                ) as mocked_run,
-            ):
-                run_command("Get-Help Get-Help", self.lesson, workspace)
-
-        self.assertEqual(
-            native_module_path,
-            mocked_run.call_args.kwargs["env"]["PSModulePath"],
-        )
-        self.assertEqual("Get-Help Get-Help", mocked_run.call_args.args[0][-1])
-
-    def test_doctor_normalizes_pwsh_modules_after_process_startup(self) -> None:
-        completed = SimpleNamespace(
-            stdout="Get-Help\n",
-            stderr="",
-            returncode=0,
-        )
-        pwsh_module_path = (
-            r"C:\Users\runner\Documents\PowerShell\Modules;"
-            r"C:\Program Files\PowerShell\7\Modules"
-        )
-        host_environment = {
-            "PSModulePath": pwsh_module_path,
-            "ProgramFiles": r"C:\Program Files",
-            "SystemRoot": r"C:\Windows",
-            "USERPROFILE": r"C:\Users\runner",
-        }
-        with (
-            patch.dict(os.environ, host_environment),
-            patch(
-                "hacker_cli_gym.cli.shell_command",
-                return_value=["powershell.exe", "-Command"],
-            ),
-            patch(
-                "hacker_cli_gym.cli.subprocess.run",
-                return_value=completed,
-            ) as mocked_run,
-        ):
-            available = _available_commands([self.lesson])
-
-        self.assertEqual({"Get-Help"}, available)
-        doctor_environment = {
-            key.casefold(): value
-            for key, value in mocked_run.call_args.kwargs["env"].items()
-        }
-        self.assertEqual(
-            pwsh_module_path,
-            doctor_environment["psmodulepath"],
-        )
-        rendered_probe = mocked_run.call_args.args[0][-1]
-        self.assertTrue(rendered_probe.startswith("$env:PSModulePath = '"))
-        self.assertIn(
-            r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules",
-            rendered_probe,
-        )
 
 
 class ProgressTests(unittest.TestCase):

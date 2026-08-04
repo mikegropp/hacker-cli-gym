@@ -35,9 +35,6 @@ jobs:
 
   windows:
     name: windows (${{ matrix.python-version }}, shard ${{ matrix.shard }})
-    defaults:
-      run:
-        shell: powershell
     strategy:
       fail-fast: false
       matrix:
