@@ -388,14 +388,13 @@ def shell_command(lesson: Lesson) -> list[str] | None:
 
 def powershell_module_path(
     *,
-    user_profile: Path | None = None,
     source_environment: Mapping[str, str] | None = None,
 ) -> str:
     source = source_environment if source_environment is not None else os.environ
     folded = {key.casefold(): value for key, value in source.items()}
     candidates: list[PureWindowsPath] = []
 
-    profile = str(user_profile) if user_profile is not None else folded.get("userprofile")
+    profile = folded.get("userprofile")
     if profile:
         candidates.append(
             PureWindowsPath(profile) / "Documents" / "WindowsPowerShell" / "Modules"
@@ -461,7 +460,10 @@ def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 
         }
     )
     if lesson.shell == "powershell":
-        environment["PSModulePath"] = powershell_module_path(user_profile=workspace)
+        # Keep module discovery stable across disposable reps. Including the
+        # unique workspace profile here forces Windows PowerShell to rebuild
+        # its module-analysis cache for every command.
+        environment["PSModulePath"] = powershell_module_path()
     try:
         completed = subprocess.run(
             [*invocation, command],

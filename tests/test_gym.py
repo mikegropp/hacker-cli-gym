@@ -278,6 +278,11 @@ class ExecutionEnvironmentTests(unittest.TestCase):
 
         module_path = mocked_run.call_args.kwargs["env"]["PSModulePath"]
         self.assertNotIn("pwsh-only-modules", module_path)
+        self.assertNotIn(str(workspace), module_path)
+        self.assertIn(
+            r"C:\Users\runner\Documents\WindowsPowerShell\Modules",
+            module_path,
+        )
         self.assertIn(
             r"C:\Windows\System32\WindowsPowerShell\v1.0\Modules",
             module_path,
