@@ -1,15 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mikegropp/hacker-cli-gym/blob/main/hacker_cli_gym/lessons/schema.json",
-  "title": "Hacker CLI Gym Linux catalog",
+  "title": "Hacker CLI Gym curriculum catalog",
   "type": "object",
   "additionalProperties": false,
-  "required": ["catalog_version", "lessons"],
+  "required": ["catalog_version", "track", "platforms", "shell", "lessons"],
   "properties": {
     "catalog_version": {"const": 1},
+    "track": {"enum": ["linux", "powershell"]},
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["linux", "windows"]}
+    },
+    "shell": {"enum": ["posix", "powershell"]},
     "lessons": {
       "type": "array",
-      "minItems": 100,
+      "minItems": 1,
       "maxItems": 100,
       "items": {"$ref": "#/$defs/lesson"}
     }
@@ -41,7 +50,7 @@
         "completion"
       ],
       "properties": {
-        "id": {"type": "string", "pattern": "^linux-[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "id": {"type": "string", "pattern": "^(linux|powershell)-[a-z0-9]+(?:-[a-z0-9]+)*$"},
         "order": {"type": "integer", "minimum": 1, "maximum": 100},
         "section": {"type": "string", "pattern": "^(0[1-9]|10)-[a-z]+(?:-[a-z]+)*$"},
         "command": {"type": "string", "minLength": 1},
@@ -72,7 +81,7 @@
         "operators": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"const": "&&"}
+          "items": {"enum": ["&&", ";"]}
         },
         "packages": {
           "type": "array",
@@ -96,6 +105,7 @@
             "stdout",
             "stdout-unordered-lines",
             "stdout-contains",
+            "output-contains",
             "stderr-contains",
             "stdout-nonempty",
             "stdout-regex",

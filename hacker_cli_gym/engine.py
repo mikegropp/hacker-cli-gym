@@ -131,7 +131,7 @@ def run_lesson(
                 _emit_multiline(output, result.stderr)
             output(f"[exit {result.returncode}]")
             if result.timed_out:
-                output("The command exceeded the six-second practice limit.")
+                output("The command exceeded the twelve-second practice limit.")
 
             checks = evaluate_lesson(lesson, result, workspace)
             output("\nCHECK")

@@ -13,6 +13,7 @@ SUPPORTED_CHECKS = {
     "stdout",
     "stdout-unordered-lines",
     "stdout-contains",
+    "output-contains",
     "stderr-contains",
     "stdout-nonempty",
     "stdout-regex",
@@ -32,14 +33,18 @@ def default_lessons_dir() -> Path:
 
 
 def current_platform() -> str:
-    return "linux" if sys.platform.startswith("linux") else sys.platform
+    if sys.platform.startswith("linux"):
+        return "linux"
+    if sys.platform.startswith("win"):
+        return "windows"
+    return sys.platform
 
 
 def _safe_relative_path(raw_path: str, source: str) -> None:
     posix = PurePosixPath(raw_path)
     if (
         posix.is_absolute()
-        or ".." in posix.parts
+        or ".." in re.split(r"[\\/]", raw_path)
         or raw_path.startswith(("~", "\\\\"))
         or re.match(r"^[A-Za-z]:[\\/]", raw_path)
     ):
@@ -49,11 +54,19 @@ def _safe_relative_path(raw_path: str, source: str) -> None:
 def validate_lesson(lesson: Lesson) -> None:
     if not LESSON_ID.fullmatch(lesson.id):
         raise LessonFormatError(f"{lesson.source}.id: invalid lesson id {lesson.id!r}")
-    if lesson.shell != "posix" or set(lesson.platforms) != {"linux"}:
-        raise LessonFormatError(f"{lesson.source}: lessons must target Linux with a POSIX shell")
-    if set(lesson.allowed_operators) - {"&&"}:
+    valid_native_pair = (
+        lesson.shell == "posix" and set(lesson.platforms) == {"linux"}
+    ) or (
+        lesson.shell == "powershell" and set(lesson.platforms) == {"windows"}
+    )
+    if not valid_native_pair:
         raise LessonFormatError(
-            f"{lesson.source}: only the reviewed && operator can be enabled"
+            f"{lesson.source}: shell and native platform do not match"
+        )
+    supported_operators = {"&&"} if lesson.shell == "posix" else {";"}
+    if set(lesson.allowed_operators) - supported_operators:
+        raise LessonFormatError(
+            f"{lesson.source}: unsupported operator for {lesson.shell}"
         )
     for relative_path in (*lesson.workspace_directories, *lesson.workspace_files):
         _safe_relative_path(relative_path, f"{lesson.source}.workspace.files")
@@ -70,7 +83,14 @@ def validate_lesson(lesson: Lesson) -> None:
             )
 
 
-def _expand_catalog_lesson(raw: object, source: str) -> Lesson:
+def _expand_catalog_lesson(
+    raw: object,
+    source: str,
+    *,
+    track: str,
+    platforms: list[str],
+    shell: str,
+) -> Lesson:
     if not isinstance(raw, dict):
         raise LessonFormatError(f"{source}: compact lesson must be an object")
     required = (
@@ -106,11 +126,11 @@ def _expand_catalog_lesson(raw: object, source: str) -> Lesson:
     full_lesson = {
         "id": raw["id"],
         "order": raw["order"],
-        "track": "linux",
+        "track": track,
         "section": raw["section"],
         "difficulty": raw.get("difficulty", default_difficulty),
-        "platforms": ["linux"],
-        "shell": "posix",
+        "platforms": platforms,
+        "shell": shell,
         "command": raw["command"],
         "title": raw["title"],
         "about": raw["about"],
@@ -155,11 +175,22 @@ def load_lessons(lessons_dir: Path | None = None) -> list[Lesson]:
         except (OSError, json.JSONDecodeError) as exc:
             raise LessonFormatError(f"{lesson_path}: cannot read lesson: {exc}") from exc
         if isinstance(raw_data, dict) and raw_data.get("catalog_version") == 1:
+            track = str(raw_data.get("track", "linux"))
+            platforms = raw_data.get("platforms", ["linux"])
+            shell = str(raw_data.get("shell", "posix"))
+            if not isinstance(platforms, list):
+                raise LessonFormatError(f"{lesson_path}: platforms must be a list")
             raw_lessons = raw_data.get("lessons")
             if not isinstance(raw_lessons, list):
                 raise LessonFormatError(f"{lesson_path}: lessons must be a list")
             parsed_lessons = [
-                _expand_catalog_lesson(item, f"{lesson_path}#{index}")
+                _expand_catalog_lesson(
+                    item,
+                    f"{lesson_path}#{index}",
+                    track=track,
+                    platforms=platforms,
+                    shell=shell,
+                )
                 for index, item in enumerate(raw_lessons, start=1)
             ]
         else:

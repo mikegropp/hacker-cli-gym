@@ -47,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     daily = commands.add_parser("daily", help="Do one five-to-ten-minute daily rep.")
     daily.set_defaults(handler=_daily)
 
-    sections = commands.add_parser("sections", help="List the ten Linux practice sections.")
+    sections = commands.add_parser("sections", help="List practice sections for this platform.")
     sections.set_defaults(handler=_sections)
 
     section = commands.add_parser("section", help="Run every unfinished rep in one section.")
@@ -72,19 +72,44 @@ def _lesson_available(lesson: Lesson) -> bool:
     return current_platform() in lesson.platforms and shell_command(lesson) is not None
 
 
-def _command_available(command: str) -> bool:
-    bash = shutil.which("bash")
-    if not bash:
-        return False
-    result = subprocess.run(
-        [bash, "--noprofile", "--norc", "-c", f"command -v {shlex.quote(command)}"],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=2,
-        check=False,
-    )
-    return result.returncode == 0
+def _available_commands(lessons: list[Lesson]) -> set[str]:
+    if not lessons:
+        return set()
+    invocation = shell_command(lessons[0])
+    if invocation is None:
+        return set()
+    commands = sorted({lesson.command for lesson in lessons})
+    if lessons[0].shell == "posix":
+        rendered = " ".join(shlex.quote(command) for command in commands)
+        probe = (
+            f"for command in {rendered}; do "
+            "if command -v \"$command\" >/dev/null 2>&1; then "
+            "printf '%s\\n' \"$command\"; fi; done"
+        )
+    else:
+        rendered = ", ".join(
+            "'" + command.replace("'", "''") + "'" for command in commands
+        )
+        probe = (
+            f"$commands = @({rendered}); foreach ($command in $commands) {{ "
+            "if (Get-Command -Name $command -ErrorAction SilentlyContinue) { "
+            "Write-Output $command } }"
+        )
+    try:
+        result = subprocess.run(
+            [*invocation, probe],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return set()
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
 def _doctor(args: argparse.Namespace, lessons: list[Lesson], progress: ProgressStore) -> int:
@@ -94,7 +119,13 @@ def _doctor(args: argparse.Namespace, lessons: list[Lesson], progress: ProgressS
     print(f"Hacker CLI Gym {__version__}")
     print(f"Platform: {observed_platform}")
     print(f"Python: {sys.version.split()[0]}")
-    print(f"Bash: {shutil.which('bash') or 'not found'}")
+    if observed_platform == "linux":
+        print(f"Bash: {shutil.which('bash') or 'not found'}")
+    elif observed_platform == "windows":
+        print(
+            "Windows PowerShell: "
+            f"{shutil.which('powershell.exe') or shutil.which('powershell') or 'not found'}"
+        )
     print(f"Lessons: {len(lessons)} total, {len(compatible)} for this platform")
     unavailable = [lesson.id for lesson in compatible if not _lesson_available(lesson)]
     if unavailable:
@@ -103,8 +134,9 @@ def _doctor(args: argparse.Namespace, lessons: list[Lesson], progress: ProgressS
             print(f"  - {lesson_id}")
         return 1
     if compatible:
+        available_commands = _available_commands(compatible)
         missing_commands = sorted(
-            {lesson.command for lesson in compatible if not _command_available(lesson.command)}
+            {lesson.command for lesson in compatible} - available_commands
         )
         if missing_commands:
             package_hints = sorted(
@@ -120,8 +152,8 @@ def _doctor(args: argparse.Namespace, lessons: list[Lesson], progress: ProgressS
             if package_hints:
                 print(f"Common package names: {', '.join(package_hints)}")
             return 1
-    elif observed_platform != "linux":
-        print("Catalog is valid. Use a Linux VM, container, or host to run the reps.")
+    elif observed_platform not in {"linux", "windows"}:
+        print("Catalog is valid. Use Linux or Windows to run the native reps.")
         return 0
     print("Ready.")
     return 0
@@ -174,11 +206,11 @@ def _daily(args: argparse.Namespace, lessons: list[Lesson], progress: ProgressSt
     if lesson is None:
         available = [lesson for lesson in compatible_lessons(lessons) if _lesson_available(lesson)]
         if not available:
-            print("Daily reps require Linux with Bash and the curriculum utilities installed.")
+            print("Daily reps require a supported native shell for this platform.")
             return 1
         day_index = datetime.now(timezone.utc).date().toordinal() % len(available)
         lesson = available[day_index]
-        print("All 100 reps are complete. Today's daily rep is a review round.")
+        print("All platform reps are complete. Today's daily rep is a review round.")
     print(f"Daily rep: {lesson.id} ({lesson.command})")
     return 0 if run_lesson(lesson, progress) else 1
 

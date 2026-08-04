@@ -38,6 +38,13 @@ FORBIDDEN_PATTERNS = (
     re.compile(r"\bsystem\s*\(", re.IGNORECASE),
     re.compile(r"\bfind\b[^|]*\s-(?:exec|execdir|delete)\b", re.IGNORECASE),
 )
+POWERSHELL_FORBIDDEN_PATTERNS = (
+    re.compile(r"\b(?:Invoke-Expression|iex)\b", re.IGNORECASE),
+    re.compile(r"\b(?:Start-Process|Start-Job|Add-Type|New-Object)\b", re.IGNORECASE),
+    re.compile(r"-(?:ComputerName|Session|Credential|AsJob)\b", re.IGNORECASE),
+    re.compile(r"\bSystem\.Diagnostics\b", re.IGNORECASE),
+    re.compile(r"::"),
+)
 REDIRECTION = re.compile(r"(?:^|\s)(?:\d?>>?|<)\s*([^\s|]+)")
 DISALLOWED_EXECUTABLES = {
     "bash",
@@ -50,6 +57,20 @@ DISALLOWED_EXECUTABLES = {
     "ruby",
     "sh",
     "zsh",
+    "cmd",
+    "cmd.exe",
+    "cscript",
+    "cscript.exe",
+    "mshta",
+    "mshta.exe",
+    "powershell",
+    "powershell.exe",
+    "pwsh",
+    "pwsh.exe",
+    "rundll32",
+    "rundll32.exe",
+    "wscript",
+    "wscript.exe",
 }
 WRAPPER_COMMANDS = {"env", "nice", "nohup", "time", "timeout", "xargs"}
 
@@ -67,6 +88,12 @@ def _looks_outside_workspace(raw_token: str) -> bool:
         return True
     if re.match(r"^[A-Za-z]:[\\/]", token):
         return True
+    if re.match(
+        r"^(?:HKLM|HKCU|Registry|Cert|WSMan|Function|Alias|Env):",
+        token,
+        re.IGNORECASE,
+    ):
+        return True
     return ".." in re.split(r"[\\/]", token)
 
 
@@ -80,31 +107,97 @@ def _embedded_path_escapes(raw_token: str) -> bool:
     return _looks_outside_workspace(value)
 
 
-def _validate_special_command(command_name: str, tokens: list[str]) -> None:
+def _validate_special_command(command_name: str, tokens: list[str], lesson: Lesson) -> None:
     arguments = tokens[1:]
-    if command_name == "kill":
+    comparable = command_name.casefold() if lesson.shell == "powershell" else command_name
+    folded_arguments = [item.casefold() for item in arguments]
+
+    if lesson.shell == "powershell":
+        if comparable in {
+            "stop-process",
+            "start-service",
+            "stop-service",
+            "restart-service",
+        }:
+            if "-whatif" not in folded_arguments:
+                raise UnsafeCommand(
+                    f"The {command_name} rep requires -WhatIf and cannot change host state."
+                )
+        elif comparable == "test-connection":
+            destinations = [
+                item.strip("'\"")
+                for item in arguments
+                if not item.startswith("-") and not item.isdigit()
+            ]
+            if not destinations or destinations[-1].casefold() not in {
+                "127.0.0.1",
+                "::1",
+                "localhost",
+            }:
+                raise UnsafeCommand("The Test-Connection rep is limited to loopback.")
+        elif comparable == "resolve-dnsname":
+            names = [item.strip("'\"") for item in arguments if not item.startswith("-")]
+            if not names or names[0].casefold() != "localhost":
+                raise UnsafeCommand("The Resolve-DnsName rep is limited to localhost.")
+        elif comparable in {"invoke-command", "measure-command"}:
+            rendered = " ".join(arguments)
+            if not re.fullmatch(
+                r"(?:-ScriptBlock\s+)?\{\s*(?:\d+\s*[+*/-]\s*\d+|'[^']*'|\"[^\"]*\")\s*\}",
+                rendered,
+                re.IGNORECASE,
+            ):
+                raise UnsafeCommand(
+                    f"The {command_name} rep permits only a static local expression."
+                )
+        elif comparable == "foreach-object":
+            if any("{" in item for item in arguments) or "-membername" not in folded_arguments:
+                raise UnsafeCommand(
+                    "This ForEach-Object rep uses the safe -MemberName form."
+                )
+            member_index = folded_arguments.index("-membername") + 1
+            if member_index >= len(arguments) or arguments[member_index].casefold() not in {
+                "tolower",
+                "tostring",
+                "toupper",
+                "trim",
+            }:
+                raise UnsafeCommand("This ForEach-Object member is outside the rep.")
+        elif comparable == "where-object" and any("{" in item for item in arguments):
+            raise UnsafeCommand("This Where-Object rep uses property comparison syntax.")
+        elif comparable == "import-module":
+            module_names = [item for item in arguments if not item.startswith("-")]
+            if not module_names or module_names[0].casefold() not in {
+                "microsoft.powershell.management",
+                "microsoft.powershell.utility",
+            }:
+                raise UnsafeCommand("This rep imports only a built-in PowerShell module.")
+        elif comparable == "get-help" and "-online" in folded_arguments:
+            raise UnsafeCommand("The Get-Help rep stays offline.")
+        return
+
+    if comparable == "kill":
         if not arguments or arguments[0] not in {"-l", "--list"}:
             raise UnsafeCommand("The kill rep only lists signal names; it never sends a signal.")
-    elif command_name == "ping":
+    elif comparable == "ping":
         destinations = [item for item in arguments if not item.startswith("-") and not item.isdigit()]
         if not destinations or destinations[-1] not in {"127.0.0.1", "::1", "localhost"}:
             raise UnsafeCommand("The ping rep is limited to this machine's loopback address.")
-    elif command_name == "curl":
+    elif comparable == "curl":
         urls = [item for item in arguments if "://" in item]
         if len(urls) != 1 or not re.fullmatch(r"file://\$PWD/[A-Za-z0-9._/-]+", urls[0]):
             raise UnsafeCommand("The curl rep only reads a file://$PWD/... URL in the practice workspace.")
-    elif command_name == "wget":
+    elif comparable == "wget":
         if not arguments or any(item not in {"--version", "-V"} for item in arguments):
             raise UnsafeCommand("The wget rep is offline and only permits --version.")
-    elif command_name == "ssh":
+    elif comparable == "ssh":
         if len(arguments) != 2 or arguments[0] != "-G" or arguments[1].startswith("-"):
             raise UnsafeCommand("The ssh rep only prints configuration with ssh -G; it never connects.")
-    elif command_name == "scp":
+    elif comparable == "scp":
         if any(":" in item or "://" in item for item in arguments):
             raise UnsafeCommand("The scp rep permits local workspace copies only.")
         if any(item.startswith("-") and item not in {"-p", "-q", "-r", "-v"} for item in arguments):
             raise UnsafeCommand("The scp rep does not permit transport-changing options.")
-    elif command_name == "rsync":
+    elif comparable == "rsync":
         if any(":" in item or "://" in item for item in arguments):
             raise UnsafeCommand("The rsync rep permits local workspace copies only.")
         if any(
@@ -112,20 +205,20 @@ def _validate_special_command(command_name: str, tokens: list[str]) -> None:
             for item in arguments
         ):
             raise UnsafeCommand("The rsync rep does not permit external transport programs.")
-    elif command_name in {"systemctl", "journalctl"}:
+    elif comparable in {"systemctl", "journalctl"}:
         if not arguments or any(item not in {"--version", "--no-pager"} for item in arguments):
             raise UnsafeCommand(f"The {command_name} rep is read-only and only permits --version.")
-    elif command_name == "tar":
+    elif comparable == "tar":
         dangerous = ("--checkpoint-action", "--use-compress-program", "--to-command", "-I")
         if any(":" in item for item in arguments) or any(
             item.startswith(dangerous) or item.startswith("--rsh-command")
             for item in arguments
         ):
             raise UnsafeCommand("This tar form can launch another program and is outside the rep.")
-    elif command_name == "zip":
+    elif comparable == "zip":
         if any(item in {"-T", "-TT"} or item.startswith("-TT") for item in arguments):
             raise UnsafeCommand("The zip rep does not permit external archive test commands.")
-    elif command_name == "sed":
+    elif comparable == "sed":
         scripts = [item for item in arguments if not item.startswith("-")]
         if any(
             re.search(r"(^|;)\s*e(?:\s|$)", script)
@@ -179,38 +272,85 @@ def check_command(command: str, lesson: Lesson) -> None:
         raise UnsafeCommand("Backtick command substitution is outside this rep.")
     if lesson.shell == "posix" and "$(" in stripped:
         raise UnsafeCommand("Command substitution is outside this rep.")
+    if lesson.shell == "powershell":
+        if "`" in stripped or "$(" in stripped or "(" in stripped or ")" in stripped:
+            raise UnsafeCommand("PowerShell substitution and nested expressions are outside this rep.")
+        variable_references = re.findall(
+            r"\$(?:\{[^}]+\}|[A-Za-z_][A-Za-z0-9_:]*)",
+            stripped,
+        )
+        safe_variables = {
+            "$pid",
+            "$null",
+            "$pwd",
+            "$env:temp",
+            "$env:tmp",
+        }
+        if any(reference.casefold() not in safe_variables for reference in variable_references):
+            raise UnsafeCommand(
+                "That PowerShell variable may resolve outside the temporary workspace."
+            )
+        if re.search(r"(^|\s)[&.]\s+", stripped):
+            raise UnsafeCommand("PowerShell call and dot-source operators are outside this rep.")
+        for pattern in POWERSHELL_FORBIDDEN_PATTERNS:
+            if pattern.search(stripped):
+                raise UnsafeCommand(
+                    "That PowerShell form is outside this rep's local practice boundary."
+                )
     for pattern in FORBIDDEN_PATTERNS:
         if pattern.search(stripped):
             raise UnsafeCommand("That command form is outside this rep's local practice boundary.")
 
-    allowed = set(lesson.allowed_commands)
-    segments = re.split(r"\||&&", stripped)
+    allowed = {
+        item.casefold() if lesson.shell == "powershell" else item
+        for item in lesson.allowed_commands
+    }
+    segments = re.split(r"\||&&|;", stripped)
     for segment in segments:
         segment = segment.strip()
         if not segment:
             raise UnsafeCommand("Every pipeline stage needs a command.")
         try:
-            tokens = shlex.split(segment, posix=True)
+            tokens = shlex.split(segment, posix=lesson.shell == "posix")
         except ValueError as exc:
             raise UnsafeCommand(f"The shell could not parse this command: {exc}") from exc
         if not tokens:
             raise UnsafeCommand("Every pipeline stage needs a command.")
         command_name = Path(tokens[0]).name
-        comparable = command_name
+        comparable = command_name.casefold() if lesson.shell == "powershell" else command_name
         if comparable not in allowed:
             allowed_display = ", ".join(lesson.allowed_commands)
             raise UnsafeCommand(
                 f"{command_name!r} is outside this rep. Available commands: {allowed_display}."
             )
-        if command_name in DISALLOWED_EXECUTABLES:
+        if command_name.casefold() in DISALLOWED_EXECUTABLES:
             raise UnsafeCommand(f"Launching {command_name!r} is outside this rep.")
+        if (
+            lesson.shell == "powershell"
+            and any(character in segment for character in "{}")
+            and comparable not in {"invoke-command", "measure-command"}
+        ):
+            raise UnsafeCommand(
+                "PowerShell script blocks are outside this rep's practice boundary."
+            )
         nested = _nested_executable(command_name, tokens)
         if nested is not None:
-            nested_comparable = nested
-            if nested_comparable not in allowed or nested in DISALLOWED_EXECUTABLES:
+            nested_comparable = nested.casefold() if lesson.shell == "powershell" else nested
+            if nested_comparable not in allowed or nested.casefold() in DISALLOWED_EXECUTABLES:
                 raise UnsafeCommand(f"The nested command {nested!r} is outside this rep.")
-        _validate_special_command(command_name, tokens)
-        for token in tokens[1:]:
+        _validate_special_command(command_name, tokens, lesson)
+        for index, token in enumerate(tokens[1:], start=1):
+            is_reviewed_xpath = (
+                lesson.shell == "powershell"
+                and comparable == "select-xml"
+                and tokens[index - 1].casefold() == "-xpath"
+                and re.fullmatch(
+                    r"/{1,2}[A-Za-z][A-Za-z0-9_-]*(?:/[A-Za-z][A-Za-z0-9_-]*)*",
+                    token.strip("'\""),
+                )
+            )
+            if is_reviewed_xpath:
+                continue
             if _looks_outside_workspace(token) or _embedded_path_escapes(token):
                 raise UnsafeCommand(
                     "Paths must stay inside the temporary practice workspace."
@@ -229,24 +369,61 @@ def shell_command(lesson: Lesson) -> list[str] | None:
     if lesson.shell == "posix":
         bash = shutil.which("bash")
         return [bash, "--noprofile", "--norc", "-c"] if bash else None
+    if lesson.shell == "powershell":
+        powershell = (
+            shutil.which("powershell.exe")
+            or shutil.which("powershell")
+        )
+        return (
+            [powershell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command"]
+            if powershell
+            else None
+        )
     return None
 
 
-def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 6.0) -> CommandResult:
+def run_command(command: str, lesson: Lesson, workspace: Path, timeout: float = 12.0) -> CommandResult:
     invocation = shell_command(lesson)
     if invocation is None:
         raise RuntimeError(f"Required shell is unavailable for {lesson.id}: {lesson.shell}")
 
-    environment = {
-            "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-            "HACKER_CLI_GYM": "1",
-            "HOME": str(workspace),
-            "USERPROFILE": str(workspace),
-            "LC_ALL": "C",
-            "LANG": "C",
-            "LESSSECURE": "1",
-            "PAGER": "cat",
+    if lesson.shell == "powershell":
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "HACKER_CLI_GYM": "1",
+                "TEMP": str(workspace),
+                "TMP": str(workspace),
+            }
+        )
+    else:
+        inherited_keys = (
+            "COMSPEC",
+            "PATHEXT",
+            "PSModulePath",
+            "SystemDrive",
+            "SystemRoot",
+            "WINDIR",
+        )
+        environment = {
+            key: os.environ[key]
+            for key in inherited_keys
+            if key in os.environ
         }
+        environment.update(
+            {
+                "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+                "HACKER_CLI_GYM": "1",
+                "HOME": str(workspace),
+                "USERPROFILE": str(workspace),
+                "TEMP": str(workspace),
+                "TMP": str(workspace),
+                "LC_ALL": "C",
+                "LANG": "C",
+                "LESSSECURE": "1",
+                "PAGER": "cat",
+            }
+        )
     try:
         completed = subprocess.run(
             [*invocation, command],
@@ -306,6 +483,13 @@ def _render_expected(value: str, workspace: Path) -> str:
     return value.replace("{{workspace}}", str(workspace))
 
 
+def _read_workspace_text(candidate: Path) -> str:
+    raw = candidate.read_bytes()
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return raw.decode("utf-16", errors="replace")
+    return raw.decode("utf-8-sig", errors="replace")
+
+
 def evaluate_check(check: Check, result: CommandResult, workspace: Path) -> CheckResult:
     config = check.config
     passed = False
@@ -333,7 +517,7 @@ def evaluate_check(check: Check, result: CommandResult, workspace: Path) -> Chec
     elif check.kind == "file-content":
         candidate = safe_workspace_path(workspace, str(config["path"]))
         if candidate.is_file():
-            actual = candidate.read_text(encoding="utf-8", errors="replace")
+            actual = _read_workspace_text(candidate)
             expected = str(config.get("expected", ""))
             passed = normalize_text(actual, str(config.get("normalize", "trim"))) == normalize_text(
                 expected, str(config.get("normalize", "trim"))
@@ -351,6 +535,11 @@ def evaluate_check(check: Check, result: CommandResult, workspace: Path) -> Chec
     elif check.kind == "stdout-contains":
         expected = _render_expected(str(config.get("expected", "")), workspace)
         passed = normalize_text(expected) in normalize_text(result.stdout)
+    elif check.kind == "output-contains":
+        expected = _render_expected(str(config.get("expected", "")), workspace)
+        passed = normalize_text(expected) in normalize_text(
+            f"{result.stdout}\n{result.stderr}"
+        )
     elif check.kind == "stderr-contains":
         expected = _render_expected(str(config.get("expected", "")), workspace)
         passed = normalize_text(expected) in normalize_text(result.stderr)

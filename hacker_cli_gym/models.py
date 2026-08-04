@@ -85,13 +85,14 @@ class Lesson:
         platforms = _string_list(
             _required(data, "platforms", source), f"{source}.platforms"
         )
-        if set(platforms) != {"linux"}:
+        unknown_platforms = set(platforms) - {"linux", "windows"}
+        if unknown_platforms:
             raise LessonFormatError(
-                f"{source}.platforms: this curriculum targets Linux only"
+                f"{source}.platforms: unsupported values {sorted(unknown_platforms)}"
             )
 
         shell = _string(_required(data, "shell", source), f"{source}.shell")
-        if shell != "posix":
+        if shell not in {"posix", "powershell"}:
             raise LessonFormatError(f"{source}.shell: unsupported shell {shell!r}")
 
         example_data = _required(data, "example", source)
