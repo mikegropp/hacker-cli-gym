@@ -281,7 +281,7 @@ function Show-Lesson($Lesson) {
 }
 
 function Show-SessionHelp {
-    @'
+    $text = @'
 :hint          show the next hint, then the reference approach
 :example       show the example again
 :lesson        redraw the lesson
@@ -293,7 +293,8 @@ function Show-SessionHelp {
 :go TARGET     jump by number, command, or lesson ID
 :status        show XP and completion
 :quit          leave the gym
-'@ | Write-Host
+'@
+    Write-Host $text
 }
 
 function Show-Status {
@@ -459,7 +460,7 @@ function Show-List {
 }
 
 function Show-Help {
-    @"
+    $text = @"
 Hacker CLI Gym — 500 outcome-graded PowerShell exercises on Windows
 
 Usage:
@@ -469,7 +470,8 @@ Usage:
   .\gym.ps1 status                show progress, XP, and level
   .\gym.ps1 test                  execute all reference approaches
   .\gym.ps1 help                  show this help
-"@ | Write-Host
+"@
+    Write-Host $text
 }
 
 Initialize-State
