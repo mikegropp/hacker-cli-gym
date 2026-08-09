@@ -1,16 +1,21 @@
 # Hacker CLI Gym
 
-Learn 100 essential Linux commands in a real, disposable command line.
+The Duolingo-style command-line gym: 1,000 short, practical exercises in real
+shells.
 
-Hacker CLI Gym drops you into a small Debian Linux container containing real
-files and the standard GNU/Linux tools. It gives you a mission, then gets out
-of the way: use any valid Bash command, pipeline, redirect, variable, loop, or
-multi-command solution. The checker grades the result, never the exact command
-you typed.
+- **Linux:** 100 essential commands × 5 stages = 500 Bash exercises in a
+  disposable Debian container.
+- **Windows:** 100 PowerShell commands × 5 stages = 500 exercises in native
+  Windows PowerShell.
 
-## Start in 30 seconds
+Every rep explains one useful idea, shows an example, gives you a real fixture,
+and asks for an outcome. The checker grades output and state—not the exact
+command you typed. Pipelines, variables, loops, alternative commands, and
+multi-step solutions are welcome.
 
-You only need Git and Docker.
+## Start the Linux gym
+
+Requirements: Git and Docker.
 
 ```console
 git clone https://github.com/mikegropp/hacker-cli-gym.git
@@ -18,88 +23,160 @@ cd hacker-cli-gym
 ./gym
 ```
 
-The first run builds the image. Later runs start immediately at your next
-unfinished rep. Progress is kept in a small Docker volume; every practice
-workspace is recreated inside the disposable container.
-
-You can also use Compose:
+The first run builds the image. Progress is stored in a Docker volume; each rep
+recreates `/work` inside a disposable container. You can also use Compose:
 
 ```console
 docker compose run --build --rm gym
 ```
 
-## What a rep feels like
+## Start the PowerShell gym
+
+Requirements: Windows and Windows PowerShell 5.1.
+
+```powershell
+git clone https://github.com/mikegropp/hacker-cli-gym.git
+Set-Location hacker-cli-gym
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 start
+```
+
+The PowerShell runner creates disposable lesson files and progress under
+`$env:LOCALAPPDATA\HackerCliGym`. Its authored exercises do not require
+administrator access and avoid changing real services, accounts, tasks, disks,
+or network configuration.
+
+PowerShell itself is unrestricted: a command you choose can affect Windows.
+Use a non-administrator shell, and use a VM if you want the whole operating
+system to be disposable.
+
+## Five meaningful stages per command
+
+Each command follows the same learning rhythm:
+
+| Stage | Purpose |
+|---:|---|
+| 1 | Orientation: use the command for its most common job |
+| 2 | Useful options: add a practical parameter or flag |
+| 3 | Focused results: select, filter, or inspect more precisely |
+| 4 | Pipeline composition: combine the command with normal shell tools |
+| 5 | Practical workflow: solve a small, realistic multi-step task |
+
+The stages are not made harder with arbitrary syntax. They progress from a
+normal first use toward the way the command appears in everyday work.
+
+## A rep in practice
 
 ```text
-========================================================================
-REP 031/100 · intermediate · cut
-Select delimited fields
-========================================================================
-cut selects fields when input has a dependable simple delimiter.
+PowerShell rep 026/500 | command 006/100 | stage 1/5: Orientation
 
-YOUR MISSION
-accounts.txt uses colons. Print only the username in field 2.
-Workspace: /work · any Bash command or pipeline is allowed
+Get-ChildItem — List files
 
-gym[31]:~$ awk -F: '{print $2}' accounts.txt
-alice
-bob
-carol
-[exit 0]
+MISSION
+Print only the names of the two files in the practice directory.
+
+gym[26] ~> Get-ChildItem -File | ForEach-Object Name
+notes.txt
+status.txt
 
 CHECK
-[PASS] Only the usernames were printed.
-
+[PASS] Only the requested names were printed.
 REP COMPLETE
 ```
 
-The featured command is `cut`, but the alternative `awk` solution passes. You
-can inspect files, take several steps, create helper variables, or solve the
-mission in a completely different way. Checks observe output, exit status,
-files, directories, links, ownership, and permissions.
+The reference might use `Select-Object -ExpandProperty Name`; the alternative
+above still passes because it produces the requested result.
 
 ## Gym controls
 
-Controls start with a colon so normal Linux commands remain untouched:
+Controls begin with a colon, leaving ordinary Bash and PowerShell input alone:
 
 ```text
-:hint       reveal a hint, then the reference approach
-:example    repeat the annotated example
+:hint       reveal the next hint, then the reference approach
+:example    repeat the example
 :files      list the current practice files
-:reset      restore the rep's original files
-:check      grade the last output and current filesystem state
-:shell      open a completely unwrapped interactive Bash subshell
+:reset      restore the rep fixture
+:check      grade the last output and current state again
 :lesson     repeat the mission
-:status     show progress, XP, level, and streak
+:status     show progress, XP, and level
 :next       move to the next rep
 :previous   move to the previous rep
 :go TARGET  jump by number, command, or lesson ID
-:quit       leave the container
+:quit       leave the gym
 ```
 
-Everything else is evaluated by Bash. Multi-line loops and functions work as
-well. Use `:shell` when you want full-screen or interactive programs without
-the gym capturing their output; file changes made there remain available to
-the checker when you return.
+The Linux track also provides `:shell` for an unwrapped interactive Bash
+subshell.
 
-## Host commands
+## Launcher commands
+
+Linux:
 
 ```console
-./gym                       # next unfinished rep
-./gym run 31                # run by number
-./gym run cut               # run by command
-./gym run linux-cut         # run by lesson ID
-./gym list                  # list all reps
-./gym status                # XP, level, streak, and section progress
-./gym test                  # execute every reference approach
-./gym build                 # rebuild after pulling changes
+./gym                         # next unfinished rep
+./gym run 151                 # run by global exercise number
+./gym run cut                 # first unfinished cut stage
+./gym run linux-cut-5         # run by exact lesson ID
+./gym list
+./gym status
+./gym test                    # execute all 500 references
+./gym build
 ```
 
-## VM clock troubleshooting
+PowerShell:
 
-Docker uses the Linux host's clock. The image build tolerates up to one hour of
-normal clock drift from pausing or restoring a VM. If APT still reports that a
-Debian `Release` file "is not valid yet," synchronize the VM and rebuild:
+```powershell
+.\gym.ps1 start
+.\gym.ps1 run 26
+.\gym.ps1 run Get-ChildItem
+.\gym.ps1 run powershell-get-childitem-5
+.\gym.ps1 list
+.\gym.ps1 status
+.\gym.ps1 test               # execute all 500 references
+```
+
+## Linux command path
+
+| Exercises | Commands | Section |
+|---:|---:|---|
+| 001–050 | 001–010 | Navigation and help |
+| 051–100 | 011–020 | Files and directories |
+| 101–150 | 021–030 | Reading content |
+| 151–200 | 031–040 | Text processing |
+| 201–250 | 041–050 | Composition and comparison |
+| 251–300 | 051–060 | Identity and permissions |
+| 301–350 | 061–070 | Processes and execution |
+| 351–400 | 071–080 | System and storage |
+| 401–450 | 081–090 | Archives and integrity |
+| 451–500 | 091–100 | Networking and services |
+
+The full command lists are in [COMMANDS.md](COMMANDS.md).
+
+## PowerShell command path
+
+| Exercises | Commands | Section |
+|---:|---:|---|
+| 001–050 | 001–010 | Discovery and navigation |
+| 051–100 | 011–020 | Files and content |
+| 101–150 | 021–030 | Pipeline and text |
+| 151–200 | 031–040 | Structured data |
+| 201–250 | 041–050 | Variables and output |
+| 251–300 | 051–060 | Paths, archives, and security |
+| 301–350 | 061–070 | Processes, services, and modules |
+| 351–400 | 071–080 | Time and system inventory |
+| 401–450 | 081–090 | Networking and policy |
+| 451–500 | 091–100 | Windows administration |
+
+## Linux isolation and networking
+
+The Linux container runs as root so permissions, ownership, processes, SSH,
+and system utilities behave naturally. The host launcher mounts no repository,
+home directory, Docker socket, or personal files into the container.
+
+Networking is disabled. Networking exercises use loopback-only HTTP and SSH
+fixtures, so they remain deterministic and do not contact real targets.
+
+If a VM clock is far behind or ahead and APT reports that a Debian `Release`
+file is not valid yet, synchronize the VM and rebuild:
 
 ```console
 sudo timedatectl set-ntp true
@@ -107,47 +184,11 @@ timedatectl status
 ./gym build
 ```
 
-The build deliberately keeps APT's repository-expiration checks enabled.
-
-## The 100-command path
-
-| Reps | Section | Commands |
-|---:|---|---|
-| 001–010 | Navigation and help | `pwd`, `ls`, `cd`, `basename`, `dirname`, `realpath`, `which`, `whereis`, `type`, `man` |
-| 011–020 | Files and directories | `mkdir`, `rmdir`, `touch`, `cp`, `mv`, `rm`, `ln`, `readlink`, `file`, `stat` |
-| 021–030 | Reading content | `cat`, `less`, `head`, `tail`, `nl`, `tac`, `strings`, `od`, `xxd`, `wc` |
-| 031–040 | Text processing | `cut`, `paste`, `grep`, `sed`, `awk`, `tr`, `sort`, `uniq`, `column`, `fmt` |
-| 041–050 | Composition and comparison | `echo`, `printf`, `tee`, `xargs`, `diff`, `cmp`, `comm`, `join`, `split`, `csplit` |
-| 051–060 | Identity and permissions | `chmod`, `chown`, `chgrp`, `umask`, `id`, `whoami`, `groups`, `getent`, `users`, `who` |
-| 061–070 | Processes and execution | `ps`, `top`, `pgrep`, `kill`, `nohup`, `nice`, `timeout`, `sleep`, `time`, `seq` |
-| 071–080 | System and storage | `uname`, `hostname`, `uptime`, `date`, `cal`, `env`, `printenv`, `df`, `du`, `free` |
-| 081–090 | Archives and integrity | `tar`, `gzip`, `gunzip`, `bzip2`, `bunzip2`, `xz`, `unxz`, `zip`, `unzip`, `sha256sum` |
-| 091–100 | Networking and services | `ip`, `ss`, `ping`, `curl`, `wget`, `ssh`, `scp`, `rsync`, `systemctl`, `journalctl` |
-
-Reps 001–030 are foundation, 031–070 are intermediate, and 071–100 are
-advanced. Each completed rep awards XP. Hints and repeated attempts reduce the
-score for that run, while replaying a rep can improve your best score.
-
-## Real Linux, safely disposable
-
-The container intentionally runs as root so ownership, permissions, processes,
-and system utilities behave naturally. You are free to break the container;
-leaving and running `./gym` again restores it. The host launcher does not mount
-the repository or any personal directory into the container.
-
-Networking is disabled by default for deterministic practice. Loopback still
-works for the networking reps. If you deliberately want network access for
-open-ended exploration, invoke the image yourself with Docker's normal bridge
-network.
-
-Do not add sensitive host mounts or the Docker socket to an untrusted shell.
-The container is the isolation boundary; it is not a virtual machine.
-
 ## Practice data
 
-Each rep creates only the files it needs. The repository's `sample-files/`
-directory adds logs, CSV/TSV data, configuration files, host lists, and a small
-project tree for self-directed practice. All names and records are synthetic.
+Every rep creates only the fixture it needs. The repository also includes
+synthetic logs, CSV/TSV data, configurations, host lists, and a small project
+tree in `sample-files/` for self-directed practice.
 
 ## License
 

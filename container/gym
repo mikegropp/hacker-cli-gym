@@ -8,14 +8,25 @@ readonly WORKSPACE=/work
 readonly PROGRESS_DIR=/var/lib/hacker-cli-gym
 readonly PROGRESS_FILE="$PROGRESS_DIR/progress.json"
 readonly SESSION_DIR="/tmp/hacker-cli-gym-$$"
+readonly GYM_PROCESS_ID="$BASHPID"
 readonly LAST_OUT="$SESSION_DIR/last.stdout"
 readonly LAST_ERR="$SESSION_DIR/last.stderr"
 readonly PARSE_ERR="$SESSION_DIR/parse.stderr"
+readonly TOTAL_LESSONS="$(jq -r '.lessons | length' "$CATALOG")"
+readonly COMMAND_COUNT="$(jq -r '.command_count' "$CATALOG")"
+readonly STAGES_PER_COMMAND="$(jq -r '.stages_per_command' "$CATALOG")"
 
 mkdir -p "$WORKSPACE" "$PROGRESS_DIR" "$SESSION_DIR"
 : >"$LAST_OUT"
 : >"$LAST_ERR"
-trap 'rm -rf -- "$SESSION_DIR"' EXIT
+
+cleanup_session() {
+  if [[ $BASHPID == "$GYM_PROCESS_ID" ]]; then
+    rm -rf -- "$SESSION_DIR"
+  fi
+}
+
+trap cleanup_session EXIT
 
 if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
   readonly BOLD=$'\033[1m'
@@ -41,6 +52,9 @@ LESSON_ORDER=0
 LESSON_COMMAND=''
 LESSON_SECTION=''
 LESSON_DIFFICULTY='foundation'
+LESSON_COMMAND_ORDER=0
+LESSON_STAGE=0
+LESSON_STAGE_NAME=''
 LAST_RC=0
 ALL_CHECKS_PASSED=0
 COMMAND_INPUT=''
@@ -136,17 +150,19 @@ mark_complete() {
 }
 
 load_lesson() {
-  local selector=$1
-  LESSON_JSON=$(jq -c --arg selector "$selector" '
-    .lessons[]
-    | select(.id == $selector or .command == $selector or (.order | tostring) == $selector)
-  ' "$CATALOG" | head -n 1)
+  local selector=$1 id
+  id=$(lesson_id_for_selector "$selector")
+  [[ -n $id ]] || return 1
+  LESSON_JSON=$(jq -c --arg id "$id" '.lessons[] | select(.id == $id)' "$CATALOG")
   [[ -n $LESSON_JSON ]] || return 1
   LESSON_ID=$(jq -r '.id' <<<"$LESSON_JSON")
   LESSON_ORDER=$(jq -r '.order' <<<"$LESSON_JSON")
   LESSON_COMMAND=$(jq -r '.command' <<<"$LESSON_JSON")
   LESSON_SECTION=$(jq -r '.section' <<<"$LESSON_JSON")
-  LESSON_DIFFICULTY=$(jq -r '.difficulty // (if .order <= 30 then "foundation" elif .order <= 70 then "intermediate" else "advanced" end)' <<<"$LESSON_JSON")
+  LESSON_DIFFICULTY=$(jq -r '.difficulty' <<<"$LESSON_JSON")
+  LESSON_COMMAND_ORDER=$(jq -r '.command_order' <<<"$LESSON_JSON")
+  LESSON_STAGE=$(jq -r '.stage' <<<"$LESSON_JSON")
+  LESSON_STAGE_NAME=$(jq -r '.stage_name' <<<"$LESSON_JSON")
 }
 
 next_incomplete_id() {
@@ -168,11 +184,14 @@ previous_order_id() {
 }
 
 lesson_id_for_selector() {
-  local selector=$1
-  jq -r --arg selector "$selector" '
-    first(
-      .lessons[]
-      | select(.id == $selector or .command == $selector or (.order | tostring) == $selector)
+  local selector=$1 completed
+  completed=$(jq -c '.completed' "$PROGRESS_FILE")
+  jq -r --arg selector "$selector" --argjson completed "$completed" '
+    (.lessons | map(select(.id == $selector or (.order | tostring) == $selector)) | first | .id) //
+    (.lessons
+      | map(select((.command | ascii_downcase) == ($selector | ascii_downcase)))
+      | . as $matches
+      | ((map(select($completed[.id] == null)) | first) // ($matches | first))
       | .id
     ) // empty
   ' "$CATALOG"
@@ -189,7 +208,7 @@ seed_workspace() {
   umask 022
   find "$WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
-  local relative encoded destination target
+  local relative encoded destination target setup_command
   while IFS= read -r relative; do
     [[ -n $relative ]] || continue
     safe_relative_path "$relative" || die "Unsafe curriculum directory: $relative"
@@ -214,6 +233,12 @@ seed_workspace() {
     ln -s -- "$target" "$destination" || die "Cannot create curriculum symlink: $relative"
   done < <(jq -r '(.symlinks // {}) | to_entries[] | [.key, (.value | @base64)] | @tsv' <<<"$LESSON_JSON")
 
+  while IFS= read -r encoded; do
+    [[ -n $encoded ]] || continue
+    setup_command=$(printf '%s' "$encoded" | base64 --decode)
+    eval "$setup_command" || die "Cannot prepare curriculum fixture for $LESSON_ID"
+  done < <(jq -r '.setup[]? | @base64' <<<"$LESSON_JSON")
+
   : >"$LAST_OUT"
   : >"$LAST_ERR"
   LAST_RC=0
@@ -233,7 +258,10 @@ show_example() {
 
 show_lesson() {
   printf '\n%s========================================================================%s\n' "$CYAN" "$RESET"
-  printf '%sREP %03d/100 · %s · %s%s\n' "$BOLD" "$LESSON_ORDER" "$LESSON_DIFFICULTY" "$LESSON_COMMAND" "$RESET"
+  printf '%sREP %03d/%03d · COMMAND %03d/%03d · STAGE %d/%d · %s%s\n' \
+    "$BOLD" "$LESSON_ORDER" "$TOTAL_LESSONS" "$LESSON_COMMAND_ORDER" "$COMMAND_COUNT" \
+    "$LESSON_STAGE" "$STAGES_PER_COMMAND" "$LESSON_COMMAND" "$RESET"
+  printf '%s%s · %s%s\n' "$DIM" "$LESSON_STAGE_NAME" "$LESSON_DIFFICULTY" "$RESET"
   printf '%s%s%s\n' "$BOLD" "$(jq -r '.title' <<<"$LESSON_JSON")" "$RESET"
   printf '%s========================================================================%s\n' "$CYAN" "$RESET"
   jq -r '.about' <<<"$LESSON_JSON"
@@ -316,6 +344,11 @@ evaluate_checks() {
         actual=$(<"$LAST_OUT")
         [[ $(normalize_value "$actual") == *"$(normalize_value "$expected")"* ]] && passed=1
         ;;
+      stdout-not-contains)
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        actual=$(<"$LAST_OUT")
+        [[ $(normalize_value "$actual") != *"$(normalize_value "$expected")"* ]] && passed=1
+        ;;
       output-contains)
         expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
         actual="$(<"$LAST_OUT")"$'\n'"$(<"$LAST_ERR")"
@@ -358,6 +391,14 @@ evaluate_checks() {
         if [[ -f $path ]]; then
           actual=$(<"$path")
           [[ $(normalize_value "$actual" "$mode") == "$(normalize_value "$expected" "$mode")" ]] && passed=1
+        fi
+        ;;
+      file-content-contains)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        if [[ -f $path ]]; then
+          actual=$(<"$path")
+          [[ $(normalize_value "$actual") == *"$(normalize_value "$expected")"* ]] && passed=1
         fi
         ;;
       file-mode)
@@ -468,7 +509,7 @@ show_status() {
   level=$((xp / 500 + 1))
   rank=$(rank_for_level "$level")
   streak=$(streak_days)
-  printf '%sProgress%s  %d/100 reps · %d XP · Level %d %s · %d-day streak\n' "$BOLD" "$RESET" "$completed" "$xp" "$level" "$rank" "$streak"
+  printf '%sLinux progress%s  %d/%d reps · %d XP · Level %d %s · %d-day streak\n' "$BOLD" "$RESET" "$completed" "$TOTAL_LESSONS" "$xp" "$level" "$rank" "$streak"
   jq -r --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
     .lessons
     | group_by(.section)[]
@@ -482,7 +523,7 @@ list_reps() {
   jq -r --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
     .lessons | sort_by(.order)[]
     | (if $completed[.id] != null then "✓" else "·" end) as $mark
-    | "\($mark) \(.order | tostring | if length < 3 then ("0" * (3 - length)) + . else . end)  \(.command) — \(.title)"
+    | "\($mark) \(.order | tostring | if length < 3 then ("0" * (3 - length)) + . else . end)  \(.command) \(.stage)/5 — \(.title)"
   ' "$CATALOG"
 }
 
@@ -560,7 +601,7 @@ lesson_session() {
       :next)
         next=$(next_order_id)
         if [[ -z $next ]]; then
-          printf 'That was rep 100. Nice work.\n'
+          printf 'That was Linux rep %d. Nice work.\n' "$TOTAL_LESSONS"
         else
           NAVIGATE_TO=$next
           return 0
@@ -569,7 +610,7 @@ lesson_session() {
       :previous|:prev)
         next=$(previous_order_id)
         if [[ -z $next ]]; then
-          printf 'This is rep 001; there is no previous rep.\n'
+          printf 'This is Linux rep 001; there is no previous rep.\n'
         else
           NAVIGATE_TO=$next
           return 0
@@ -604,10 +645,10 @@ lesson_session() {
             rank=$(rank_for_level "$level")
             printf '\n%sREP COMPLETE%s\n%s\n' "$GREEN$BOLD" "$RESET" "$(jq -r '.completion' <<<"$LESSON_JSON")"
             printf 'Attempts: %d · Hints: %d · XP: +%d · Total: %d · Level %d %s\n' "$attempts" "$hints_used" "$xp" "$(total_xp)" "$level" "$rank"
-            if ((LESSON_ORDER < 100)); then
+            if ((LESSON_ORDER < TOTAL_LESSONS)); then
               printf 'Use :next when you are ready for rep %03d, or :go to jump elsewhere.\n' "$((LESSON_ORDER + 1))"
             else
-              printf 'All 100 reps are available to replay with :previous or :go.\n'
+              printf 'All %d Linux reps are available to replay with :previous or :go.\n' "$TOTAL_LESSONS"
             fi
           fi
         else
@@ -630,23 +671,30 @@ interactive_lesson() {
 
 test_catalog() {
   jq -e '
-    .catalog_version == 1
+    .catalog_version == 2
     and .track == "linux"
-    and (.lessons | length == 100)
-    and ([.lessons[].order] == [range(1; 101)])
-    and ([.lessons[].id] | unique | length == 100)
+    and .platform == "linux"
+    and .shell == "bash"
+    and .command_count == 100
+    and .stages_per_command == 5
+    and (.lessons | length == 500)
+    and ([.lessons[].order] == [range(1; 501)])
+    and ([.lessons[].id] | unique | length == 500)
     and ([.lessons[].command] | unique | length == 100)
-    and ([.lessons | group_by(.section)[] | length] | all(. == 10))
+    and ([.lessons | group_by(.command)[] | length] | all(. == 5))
+    and (.lessons | group_by(.command) | all([.[].stage] == [1, 2, 3, 4, 5]))
+    and ([.lessons | group_by(.section)[] | length] | all(. == 50))
     and (.lessons | all(
       has("id") and has("order") and has("section") and has("command")
+      and has("command_order") and has("stage") and has("stage_name")
       and has("title") and has("about") and has("example") and has("task")
       and has("solution") and has("files") and has("checks") and has("completion")
       and (has("allowed") | not) and (has("operators") | not)
     ))
     and ([.lessons[].checks[].type] - [
-      "stdout", "stdout-unordered-lines", "stdout-contains", "output-contains",
+      "stdout", "stdout-unordered-lines", "stdout-contains", "stdout-not-contains", "output-contains",
       "stderr-contains", "stdout-nonempty", "stdout-regex", "path-exists",
-      "path-not-exists", "file-content", "file-mode", "same-inode",
+      "path-not-exists", "file-content", "file-content-contains", "file-mode", "same-inode",
       "same-owner", "same-group", "exit-code"
     ] | length == 0)
     and (.lessons | all(
@@ -664,21 +712,21 @@ test_catalog() {
 }
 
 test_navigation_helpers() {
-  [[ $(lesson_id_for_selector 35) == linux-awk ]] || return 1
+  [[ $(lesson_id_for_selector 171) == linux-awk ]] || return 1
   [[ $(lesson_id_for_selector awk) == linux-awk ]] || return 1
-  [[ $(lesson_id_for_selector linux-awk) == linux-awk ]] || return 1
+  [[ $(lesson_id_for_selector linux-awk-5) == linux-awk-5 ]] || return 1
   [[ -z $(lesson_id_for_selector does-not-exist) ]] || return 1
 
   load_lesson 1 || return 1
   [[ -z $(previous_order_id) ]] || return 1
-  [[ $(next_order_id) == linux-ls ]] || return 1
+  [[ $(next_order_id) == linux-pwd-2 ]] || return 1
 
   load_lesson 6 || return 1
-  [[ $(previous_order_id) == linux-dirname ]] || return 1
-  [[ $(next_order_id) == linux-which ]] || return 1
+  [[ $(previous_order_id) == linux-pwd-5 ]] || return 1
+  [[ $(next_order_id) == linux-ls-2 ]] || return 1
 
-  load_lesson 100 || return 1
-  [[ $(previous_order_id) == linux-systemctl ]] || return 1
+  load_lesson 500 || return 1
+  [[ $(previous_order_id) == linux-journalctl-4 ]] || return 1
   [[ -z $(next_order_id) ]] || return 1
 }
 
@@ -700,14 +748,14 @@ test_reference_solutions() {
     return 1
   fi
 
-  printf 'Running all 100 reference approaches in real Bash...\n'
+  printf 'Running all %d Linux reference approaches in real Bash...\n' "$TOTAL_LESSONS"
   while IFS= read -r id; do
     load_lesson "$id"
     seed_workspace
     solution=$(jq -r '.solution' <<<"$LESSON_JSON")
     : >"$LAST_OUT"
     : >"$LAST_ERR"
-    eval "$solution" >"$LAST_OUT" 2>"$LAST_ERR"
+    eval "$solution" </dev/null >"$LAST_OUT" 2>"$LAST_ERR"
     LAST_RC=$?
     if evaluate_checks 0; then
       printf '  %sPASS%s %03d %s\n' "$GREEN" "$RESET" "$LESSON_ORDER" "$LESSON_COMMAND"
@@ -725,7 +773,7 @@ test_reference_solutions() {
     printf '%s%d reference approach(es) failed.%s\n' "$RED" "$failures" "$RESET"
     return 1
   fi
-  printf '%sAll 100 reference approaches passed.%s\n' "$GREEN" "$RESET"
+  printf '%sAll %d Linux reference approaches passed.%s\n' "$GREEN" "$TOTAL_LESSONS" "$RESET"
 }
 
 show_help() {
@@ -735,7 +783,7 @@ Hacker CLI Gym — a disposable, outcome-graded Linux command line
 Usage inside the image:
   gym start          start the next unfinished rep
   gym run awk        run by command, number, or lesson ID
-  gym list           list all 100 reps
+  gym list           list all 500 Linux reps
   gym status         show progress, XP, level, and streak
   gym test           validate and execute all reference approaches
   gym help           show this help
@@ -751,7 +799,7 @@ main() {
       local next
       next=$(next_incomplete_id)
       if [[ -z $next ]]; then
-        printf 'All 100 reps are complete. Use "./gym run awk" to replay one.\n'
+        printf 'All %d Linux reps are complete. Use "./gym run awk" to replay one.\n' "$TOTAL_LESSONS"
         show_status
       else
         interactive_lesson "$next"
