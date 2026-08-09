@@ -264,7 +264,7 @@ function Show-Lesson($Lesson) {
     Write-Host 'HACKER CLI GYM' -ForegroundColor Cyan
     Write-Host ("PowerShell rep {0:D3}/{1} | command {2:D3}/{3} | stage {4}/{5}: {6}" -f [int]$Lesson.order,$script:TotalLessons,[int]$Lesson.command_order,$script:CommandCount,[int]$Lesson.stage,$script:StagesPerCommand,$Lesson.stage_name)
     Write-Host ''
-    Write-Host "$($Lesson.command) — $($Lesson.title)" -ForegroundColor White
+    Write-Host "$($Lesson.command) - $($Lesson.title)" -ForegroundColor White
     Write-Host $Lesson.focus
     Write-Host ''
     Write-Host 'EXAMPLE' -ForegroundColor Cyan
@@ -461,7 +461,7 @@ function Show-List {
 
 function Show-Help {
     $text = @"
-Hacker CLI Gym — 500 outcome-graded PowerShell exercises on Windows
+Hacker CLI Gym - 500 outcome-graded PowerShell exercises on Windows
 
 Usage:
   .\gym.ps1 start                 start the next unfinished rep
