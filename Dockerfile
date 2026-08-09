@@ -19,6 +19,7 @@ RUN apt-get -o Acquire::Max-FutureTime=3600 update \
         bash \
         binutils \
         bsdextrautils \
+        busybox \
         bzip2 \
         ca-certificates \
         coreutils \
@@ -36,11 +37,14 @@ RUN apt-get -o Acquire::Max-FutureTime=3600 update \
         less \
         man-db \
         ncal \
+        netbase \
         openssh-client \
+        openssh-server \
         procps \
         rsync \
         sed \
         systemd \
+        systemd-journal-remote \
         tar \
         time \
         util-linux \

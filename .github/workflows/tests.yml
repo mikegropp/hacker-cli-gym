@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  docker-gym:
+  linux-gym:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,12 +17,34 @@ jobs:
       - name: Check Bash syntax
         run: bash -n gym container/gym
 
+      - name: Regenerate curricula
+        run: |
+          node tools/generate-linux-curriculum.mjs
+          node tools/generate-powershell-curriculum.mjs
+          git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
+
       - name: Build the Linux gym
         run: docker build --tag hacker-cli-gym:test .
 
-      - name: Run all 100 reference approaches
+      - name: Run all 500 Linux reference approaches
         run: docker run --rm --network none hacker-cli-gym:test test
 
       - name: Report image size
         run: |
           docker image inspect hacker-cli-gym:test --format 'Image size: {{.Size}} bytes'
+
+  powershell-gym:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Regenerate the PowerShell curriculum
+        run: |
+          node tools/generate-powershell-curriculum.mjs
+          git diff --exit-code -- curriculum/powershell.json
+
+      - name: Run all 500 PowerShell reference approaches
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 test
