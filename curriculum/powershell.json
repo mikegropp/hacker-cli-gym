@@ -10443,12 +10443,12 @@
       "section": "06-paths-archives-and-security",
       "command": "Expand-Archive",
       "title": "Preview archive entry paths",
-      "focus": "Archive metadata can be inspected before expansion so the destination layout is understood.",
+      "focus": "Archive metadata can be inspected before expansion and normalized into a portable manifest.",
       "example": "[IO.Compression.ZipFile]::OpenRead(...).Entries.FullName",
       "example_output": "",
       "breakdown": [],
-      "task": "List the entry paths in project.zip, then extract it to restored.",
-      "solution": "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[IO.Compression.ZipFile]::OpenRead((Convert-Path project.zip)); try { $zip.Entries.FullName | Sort-Object } finally { $zip.Dispose() }; Expand-Archive project.zip restored",
+      "task": "List the entry paths in project.zip with forward slashes, then extract it to restored.",
+      "solution": "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[IO.Compression.ZipFile]::OpenRead((Convert-Path project.zip)); try { $zip.Entries.FullName | ForEach-Object { $_.Replace([IO.Path]::DirectorySeparatorChar,\"/\") } | Sort-Object } finally { $zip.Dispose() }; Expand-Archive project.zip restored",
       "hints": [
         "Start with Expand-Archive; use Get-Help Expand-Archive -Full if you need the parameter details."
       ],
@@ -11279,8 +11279,8 @@
       "example": "Stop-Process -Name notepad -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview stopping the current PowerShell process by its process name.",
-      "solution": "$name=(Get-Process -Id $PID).ProcessName; Stop-Process -Name $name -WhatIf",
+      "task": "Preview stopping the current PowerShell process by its process name, then print previewed=<name>.",
+      "solution": "$name=(Get-Process -Id $PID).ProcessName; Stop-Process -Name $name -WhatIf; \"previewed=$name\"",
       "hints": [
         "Start with Stop-Process; use Get-Help Stop-Process -Full if you need the parameter details."
       ],
@@ -11291,7 +11291,7 @@
         {
           "type": "stdout-contains",
           "description": "The requested value was included.",
-          "expected": "Stop-Process"
+          "expected": "previewed="
         }
       ],
       "completion": "Stop-Process stage 2 complete."
@@ -11310,8 +11310,8 @@
       "example": "Get-Process notepad | Stop-Process -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Pipe the current process object to Stop-Process -WhatIf.",
-      "solution": "Get-Process -Id $PID | Stop-Process -WhatIf",
+      "task": "Pipe the current process object to Stop-Process -WhatIf, then print piped=<PID>.",
+      "solution": "Get-Process -Id $PID | Stop-Process -WhatIf; \"piped=$PID\"",
       "hints": [
         "Start with Stop-Process; use Get-Help Stop-Process -Full if you need the parameter details."
       ],
@@ -11322,7 +11322,7 @@
         {
           "type": "stdout-contains",
           "description": "The requested value was included.",
-          "expected": "Stop-Process"
+          "expected": "piped="
         }
       ],
       "completion": "Stop-Process stage 3 complete."
@@ -11764,8 +11764,8 @@
       "example": "Start-Service -DisplayName 'Windows Event Log' -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview starting Windows Event Log by display name.",
-      "solution": "Start-Service -DisplayName 'Windows Event Log' -WhatIf",
+      "task": "Preview starting Windows Event Log by display name, then print previewed=EventLog.",
+      "solution": "Start-Service -DisplayName 'Windows Event Log' -WhatIf; 'previewed=EventLog'",
       "hints": [
         "Start with Start-Service; use Get-Help Start-Service -Full if you need the parameter details."
       ],
@@ -11774,9 +11774,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Start-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "previewed=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Start-Service stage 2 complete."
@@ -11795,8 +11796,8 @@
       "example": "Get-Service EventLog | Start-Service -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Pipe the EventLog service object into Start-Service -WhatIf.",
-      "solution": "Get-Service EventLog | Start-Service -WhatIf",
+      "task": "Pipe the EventLog service object into Start-Service -WhatIf, then print piped=EventLog.",
+      "solution": "Get-Service EventLog | Start-Service -WhatIf; 'piped=EventLog'",
       "hints": [
         "Start with Start-Service; use Get-Help Start-Service -Full if you need the parameter details."
       ],
@@ -11805,9 +11806,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Start-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "piped=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Start-Service stage 3 complete."
@@ -11826,8 +11828,8 @@
       "example": "Start-Service EventLog,Schedule -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview starting EventLog and Schedule in one Start-Service command.",
-      "solution": "Start-Service EventLog,Schedule -WhatIf",
+      "task": "Preview starting EventLog and Schedule in one Start-Service command, then print batch=EventLog,Schedule.",
+      "solution": "Start-Service EventLog,Schedule -WhatIf; 'batch=EventLog,Schedule'",
       "hints": [
         "Start with Start-Service; use Get-Help Start-Service -Full if you need the parameter details."
       ],
@@ -11836,14 +11838,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "EventLog"
-        },
-        {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Schedule"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "batch=EventLog,Schedule",
+          "normalize": "trim"
         }
       ],
       "completion": "Start-Service stage 4 complete."
@@ -11932,8 +11930,8 @@
       "example": "Stop-Service -DisplayName 'Windows Event Log' -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview stopping Windows Event Log by display name.",
-      "solution": "Stop-Service -DisplayName 'Windows Event Log' -WhatIf",
+      "task": "Preview stopping Windows Event Log by display name, then print previewed=EventLog.",
+      "solution": "Stop-Service -DisplayName 'Windows Event Log' -WhatIf; 'previewed=EventLog'",
       "hints": [
         "Start with Stop-Service; use Get-Help Stop-Service -Full if you need the parameter details."
       ],
@@ -11942,9 +11940,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Stop-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "previewed=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Stop-Service stage 2 complete."
@@ -11963,8 +11962,8 @@
       "example": "Get-Service EventLog | Stop-Service -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Pipe EventLog into Stop-Service -WhatIf.",
-      "solution": "Get-Service EventLog | Stop-Service -WhatIf",
+      "task": "Pipe EventLog into Stop-Service -WhatIf, then print piped=EventLog.",
+      "solution": "Get-Service EventLog | Stop-Service -WhatIf; 'piped=EventLog'",
       "hints": [
         "Start with Stop-Service; use Get-Help Stop-Service -Full if you need the parameter details."
       ],
@@ -11973,9 +11972,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Stop-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "piped=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Stop-Service stage 3 complete."
@@ -11994,8 +11994,8 @@
       "example": "Stop-Service RpcSs -Force -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview stopping RpcSs with -Force without changing the service.",
-      "solution": "Stop-Service RpcSs -Force -WhatIf",
+      "task": "Preview stopping RpcSs with -Force, then print forced=RpcSs.",
+      "solution": "Stop-Service RpcSs -Force -WhatIf; 'forced=RpcSs'",
       "hints": [
         "Start with Stop-Service; use Get-Help Stop-Service -Full if you need the parameter details."
       ],
@@ -12004,9 +12004,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Stop-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "forced=RpcSs",
+          "normalize": "trim"
         }
       ],
       "completion": "Stop-Service stage 4 complete."
@@ -12090,8 +12091,8 @@
       "example": "Restart-Service -DisplayName 'Windows Event Log' -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview restarting Windows Event Log by display name.",
-      "solution": "Restart-Service -DisplayName 'Windows Event Log' -WhatIf",
+      "task": "Preview restarting Windows Event Log by display name, then print previewed=EventLog.",
+      "solution": "Restart-Service -DisplayName 'Windows Event Log' -WhatIf; 'previewed=EventLog'",
       "hints": [
         "Start with Restart-Service; use Get-Help Restart-Service -Full if you need the parameter details."
       ],
@@ -12100,9 +12101,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Restart-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "previewed=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Restart-Service stage 2 complete."
@@ -12121,8 +12123,8 @@
       "example": "Get-Service EventLog | Restart-Service -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Pipe EventLog into Restart-Service -WhatIf.",
-      "solution": "Get-Service EventLog | Restart-Service -WhatIf",
+      "task": "Pipe EventLog into Restart-Service -WhatIf, then print piped=EventLog.",
+      "solution": "Get-Service EventLog | Restart-Service -WhatIf; 'piped=EventLog'",
       "hints": [
         "Start with Restart-Service; use Get-Help Restart-Service -Full if you need the parameter details."
       ],
@@ -12131,9 +12133,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Restart-Service"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "piped=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Restart-Service stage 3 complete."
@@ -12152,8 +12155,8 @@
       "example": "Restart-Service EventLog -Force -WhatIf",
       "example_output": "",
       "breakdown": [],
-      "task": "Preview a forced restart of EventLog.",
-      "solution": "Restart-Service EventLog -Force -WhatIf",
+      "task": "Preview a forced restart of EventLog, then print forced=EventLog.",
+      "solution": "Restart-Service EventLog -Force -WhatIf; 'forced=EventLog'",
       "hints": [
         "Start with Restart-Service; use Get-Help Restart-Service -Full if you need the parameter details."
       ],
@@ -12162,14 +12165,10 @@
       "setup": [],
       "checks": [
         {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "Restart-Service"
-        },
-        {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "EventLog"
+          "type": "stdout",
+          "description": "The requested result was printed.",
+          "expected": "forced=EventLog",
+          "normalize": "trim"
         }
       ],
       "completion": "Restart-Service stage 4 complete."
