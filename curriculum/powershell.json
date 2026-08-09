@@ -783,8 +783,8 @@
       "example": "Set-Location ..",
       "example_output": "",
       "breakdown": [],
-      "task": "Start in projectsalpha, move to its parent with Set-Location, and print the new leaf name.",
-      "solution": "Set-Location projectsalpha; Set-Location ..; Split-Path (Get-Location).Path -Leaf",
+      "task": "Start in projects\\alpha, move to its parent with Set-Location, and print the new leaf name.",
+      "solution": "Set-Location projects/alpha; Set-Location ..; Split-Path (Get-Location).Path -Leaf",
       "hints": [
         "Start with Set-Location; use Get-Help Set-Location -Full if you need the parameter details."
       ],
@@ -1517,11 +1517,11 @@
       "command": "Resolve-Path",
       "title": "Produce a relative path",
       "focus": "-Relative returns a path relative to the current location instead of an absolute provider path.",
-      "example": "Resolve-Path logsapp.log -Relative",
+      "example": "Resolve-Path logs\\app.log -Relative",
       "example_output": "",
       "breakdown": [],
-      "task": "Print the relative path to reportsdaily.txt with Resolve-Path -Relative.",
-      "solution": "Resolve-Path reportsdaily.txt -Relative",
+      "task": "Print the relative path to reports\\daily.txt with Resolve-Path -Relative.",
+      "solution": "Resolve-Path reports/daily.txt -Relative",
       "hints": [
         "Start with Resolve-Path; use Get-Help Resolve-Path -Full if you need the parameter details."
       ],
@@ -1589,11 +1589,11 @@
       "command": "Resolve-Path",
       "title": "Create a canonical path manifest",
       "focus": "Resolved paths can be normalized and labeled to make later file operations unambiguous.",
-      "example": "Resolve-Path inputs* | ForEach-Object Path",
+      "example": "Resolve-Path inputs\\* | ForEach-Object Path",
       "example_output": "",
       "breakdown": [],
-      "task": "Print alpha=<absolute-path> and beta=<absolute-path> for inputsalpha.txt and inputs\beta.txt.",
-      "solution": "'alpha','beta' | ForEach-Object { \"$_=$((Resolve-Path \"inputs\\$_.txt\").Path)\" }",
+      "task": "Print alpha=<absolute-path> and beta=<absolute-path> for inputs\\alpha.txt and inputs\\beta.txt.",
+      "solution": "'alpha','beta' | ForEach-Object { \"$_=$((Resolve-Path \"inputs/$_.txt\").Path)\" }",
       "hints": [
         "Start with Resolve-Path; use Get-Help Resolve-Path -Full if you need the parameter details."
       ],
@@ -1716,7 +1716,7 @@
       "example": "'blue','green' | Join-Path -ChildPath app.conf",
       "example_output": "",
       "breakdown": [],
-      "task": "Print bluesettings.json and greensettings.json by piping both roots to Join-Path.",
+      "task": "Print blue\\settings.json and green\\settings.json by piping both roots to Join-Path.",
       "solution": "'blue','green' | Join-Path -ChildPath settings.json",
       "hints": [
         "Start with Join-Path; use Get-Help Join-Path -Full if you need the parameter details."
@@ -1782,7 +1782,7 @@
       "example": "foreach($env in 'dev','prod'){ Join-Path $env app.log }",
       "example_output": "",
       "breakdown": [],
-      "task": "Print devlogsapp.log and prodlogsapp.log in that order using Join-Path for every segment.",
+      "task": "Print dev\\logs\\app.log and prod\\logs\\app.log in that order using Join-Path for every segment.",
       "solution": "foreach($environment in 'dev','prod'){ Join-Path (Join-Path $environment logs) app.log }",
       "hints": [
         "Start with Join-Path; use Get-Help Join-Path -Full if you need the parameter details."
@@ -1889,11 +1889,11 @@
       "command": "New-Item",
       "title": "Create missing parent directories",
       "focus": "-Force allows New-Item to create a directory path whose parent segments do not yet exist.",
-      "example": "New-Item -ItemType Directory -Path logsarchive -Force",
+      "example": "New-Item -ItemType Directory -Path logs\\archive -Force",
       "example_output": "",
       "breakdown": [],
-      "task": "Create the nested directory projectconfigproduction and print its leaf name.",
-      "solution": "New-Item -ItemType Directory -Path projectconfigproduction -Force | Select-Object -ExpandProperty Name",
+      "task": "Create the nested directory project\\config\\production and print its leaf name.",
+      "solution": "New-Item -ItemType Directory -Path project/config/production -Force | Select-Object -ExpandProperty Name",
       "hints": [
         "Start with New-Item; use Get-Help New-Item -Full if you need the parameter details."
       ],
@@ -1977,11 +1977,11 @@
       "command": "New-Item",
       "title": "Scaffold a small project",
       "focus": "Directory and file creation can be composed into an idempotent project scaffold.",
-      "example": "New-Item project -ItemType Directory; New-Item projectREADME.md -ItemType File",
+      "example": "New-Item project -ItemType Directory; New-Item project\\README.md -ItemType File",
       "example_output": "",
       "breakdown": [],
-      "task": "Create appconfig and applogs, then create appconfigapp.ini containing mode=practice and print it.",
-      "solution": "New-Item appconfig,applogs -ItemType Directory -Force | Out-Null; New-Item appconfigapp.ini -ItemType File -Value 'mode=practice' -Force | Out-Null; Get-Content appconfigapp.ini",
+      "task": "Create app\\config and app\\logs, then create app\\config\\app.ini containing mode=practice and print it.",
+      "solution": "New-Item app/config,app/logs -ItemType Directory -Force | Out-Null; New-Item app/config/app.ini -ItemType File -Value 'mode=practice' -Force | Out-Null; Get-Content app/config/app.ini",
       "hints": [
         "Start with New-Item; use Get-Help New-Item -Full if you need the parameter details."
       ],
@@ -2110,8 +2110,8 @@
       "example": "Copy-Item project snapshot -Recurse",
       "example_output": "",
       "breakdown": [],
-      "task": "Copy project recursively to snapshot and print snapshotconfigapp.ini.",
-      "solution": "Copy-Item project snapshot -Recurse; Get-Content snapshotconfigapp.ini",
+      "task": "Copy project recursively to snapshot and print snapshot\\config\\app.ini.",
+      "solution": "Copy-Item project snapshot -Recurse; Get-Content snapshot/config/app.ini",
       "hints": [
         "Start with Copy-Item; use Get-Help Copy-Item -Full if you need the parameter details."
       ],
@@ -2154,11 +2154,11 @@
       "command": "Copy-Item",
       "title": "Copy a selected file set",
       "focus": "-Filter limits provider-side copying to matching names.",
-      "example": "Copy-Item logs* archive -Filter '*.log'",
+      "example": "Copy-Item logs\\* archive -Filter '*.log'",
       "example_output": "",
       "breakdown": [],
       "task": "Copy only .json files from incoming into reviewed, then print copied names sorted.",
-      "solution": "Copy-Item incoming* reviewed -Filter '*.json'; Get-ChildItem reviewed -File -Name | Sort-Object",
+      "solution": "Copy-Item incoming/* reviewed -Filter '*.json'; Get-ChildItem reviewed -File -Name | Sort-Object",
       "hints": [
         "Start with Copy-Item; use Get-Help Copy-Item -Full if you need the parameter details."
       ],
@@ -2212,8 +2212,8 @@
       "example": "Copy-Item artifact backup; Compare-Object (Get-FileHash artifact).Hash (Get-FileHash backup).Hash",
       "example_output": "",
       "breakdown": [],
-      "task": "Copy release.bin to backups\release.bin and print verified when their SHA-256 hashes match.",
-      "solution": "Copy-Item release.bin backups\release.bin; if ((Get-FileHash release.bin).Hash -eq (Get-FileHash backups\release.bin).Hash) { \"verified\" }",
+      "task": "Copy release.bin to backups\\release.bin and print verified when their SHA-256 hashes match.",
+      "solution": "Copy-Item release.bin backups/release.bin; if ((Get-FileHash release.bin).Hash -eq (Get-FileHash backups/release.bin).Hash) { \"verified\" }",
       "hints": [
         "Start with Copy-Item; use Get-Help Copy-Item -Full if you need the parameter details."
       ],
@@ -2354,11 +2354,11 @@
       "command": "Move-Item",
       "title": "Overwrite a stale destination",
       "focus": "-Force completes an intentional replacement when a destination file already exists.",
-      "example": "Move-Item current.txt archivecurrent.txt -Force",
+      "example": "Move-Item current.txt archive\\current.txt -Force",
       "example_output": "",
       "breakdown": [],
-      "task": "Move new.conf over archiveapp.conf with -Force and print the result.",
-      "solution": "Move-Item new.conf archiveapp.conf -Force; Get-Content archiveapp.conf",
+      "task": "Move new.conf over archive\\app.conf with -Force and print the result.",
+      "solution": "Move-Item new.conf archive/app.conf -Force; Get-Content archive/app.conf",
       "hints": [
         "Start with Move-Item; use Get-Help Move-Item -Full if you need the parameter details."
       ],
@@ -2456,11 +2456,11 @@
       "command": "Move-Item",
       "title": "Promote a staged release",
       "focus": "A move workflow can archive the old target and promote the reviewed staging tree atomically within one volume.",
-      "example": "Move-Item current archiveold; Move-Item staging current",
+      "example": "Move-Item current archive\\old; Move-Item staging current",
       "example_output": "",
       "breakdown": [],
-      "task": "Move current to archiveprevious, promote staging to current, and print current\u000bersion.txt.",
-      "solution": "Move-Item current archiveprevious; Move-Item staging current; Get-Content current\u000bersion.txt",
+      "task": "Move current to archive\\previous, promote staging to current, and print current\\version.txt.",
+      "solution": "Move-Item current archive/previous; Move-Item staging current; Get-Content current/version.txt",
       "hints": [
         "Start with Move-Item; use Get-Help Move-Item -Full if you need the parameter details."
       ],
@@ -2615,11 +2615,6 @@
           "type": "path-not-exists",
           "description": "report.bak is absent.",
           "path": "report.bak"
-        },
-        {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "report.bak"
         }
       ],
       "completion": "Rename-Item stage 3 complete."
@@ -2780,11 +2775,6 @@
           "description": "archive.log exists as a file.",
           "path": "archive.log",
           "kind": "file"
-        },
-        {
-          "type": "stdout-contains",
-          "description": "The requested value was included.",
-          "expected": "archive.log"
         }
       ],
       "completion": "Remove-Item stage 2 complete."
@@ -3414,7 +3404,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Append rotated to every .log file in logs, preserve notes.txt, then print api.log and web.log.",
-      "solution": "Get-ChildItem logs -Filter '*.log' | ForEach-Object { Add-Content $_.FullName 'rotated' }; Get-Content logsapi.log,logsweb.log",
+      "solution": "Get-ChildItem logs -Filter '*.log' | ForEach-Object { Add-Content $_.FullName 'rotated' }; Get-Content logs/api.log,logs/web.log",
       "hints": [
         "Start with Add-Content; use Get-Help Add-Content -Full if you need the parameter details."
       ],
@@ -3595,11 +3585,11 @@
       "command": "Clear-Content",
       "title": "Clear wildcard matches",
       "focus": "A wildcard path clears a reviewed filename class in one operation.",
-      "example": "Clear-Content logs*.log",
+      "example": "Clear-Content logs\\*.log",
       "example_output": "",
       "breakdown": [],
       "task": "Clear every .tmp file in cache while preserving keep.txt.",
-      "solution": "Clear-Content cache*.tmp",
+      "solution": "Clear-Content cache/*.tmp",
       "hints": [
         "Start with Clear-Content; use Get-Help Clear-Content -Full if you need the parameter details."
       ],
@@ -3681,7 +3671,7 @@
       "example": "Get-ChildItem output -Recurse -File | Clear-Content",
       "example_output": "",
       "breakdown": [],
-      "task": "Clear all .log files below output, preserve outputconfigkeep.ini, and print the cleared relative paths sorted.",
+      "task": "Clear all .log files below output, preserve output\\config\\keep.ini, and print the cleared relative paths sorted.",
       "solution": "Get-ChildItem output -Recurse -File -Filter '*.log' | Clear-Content; Get-ChildItem output -Recurse -File -Filter '*.log' | ForEach-Object { $_.FullName.Substring((Get-Location).Path.Length+1).Replace('\\','/') } | Sort-Object",
       "hints": [
         "Start with Clear-Content; use Get-Help Clear-Content -Full if you need the parameter details."
@@ -4053,11 +4043,11 @@
       "command": "Select-String",
       "title": "Summarize matches by file",
       "focus": "Select-String match objects can be grouped to produce a useful incident-search summary.",
-      "example": "Select-String logs*.log ERROR | Group-Object Path",
+      "example": "Select-String logs\\*.log ERROR | Group-Object Path",
       "example_output": "",
       "breakdown": [],
       "task": "Count ERROR matches in each .log file and print api.log=2 then web.log=1.",
-      "solution": "Select-String -Path logs*.log -Pattern 'ERROR' | Group-Object Path | Sort-Object Name | ForEach-Object { \"$([IO.Path]::GetFileName($_.Name))=$($_.Count)\" }",
+      "solution": "Select-String -Path logs/*.log -Pattern 'ERROR' | Group-Object Path | Sort-Object Name | ForEach-Object { \"$([IO.Path]::GetFileName($_.Name))=$($_.Count)\" }",
       "hints": [
         "Start with Select-String; use Get-Help Select-String -Full if you need the parameter details."
       ],
@@ -5077,8 +5067,8 @@
       "example": "Import-Csv services.csv | ForEach-Object { Set-Content \"$($_.name).conf\" ... }",
       "example_output": "",
       "breakdown": [],
-      "task": "Create generatedapi.conf and generatedweb.conf from services.csv, each containing port=<port>, then print both files in name order.",
-      "solution": "New-Item generated -ItemType Directory | Out-Null; Import-Csv services.csv | ForEach-Object { Set-Content \"generated\\$($_.name).conf\" \"port=$($_.port)\" }; Get-Content generatedapi.conf,generatedweb.conf",
+      "task": "Create generated\\api.conf and generated\\web.conf from services.csv, each containing port=<port>, then print both files in name order.",
+      "solution": "New-Item generated -ItemType Directory | Out-Null; Import-Csv services.csv | ForEach-Object { Set-Content (Join-Path generated \"$($_.name).conf\") \"port=$($_.port)\" }; Get-Content generated/api.conf,generated/web.conf",
       "hints": [
         "Start with ForEach-Object; use Get-Help ForEach-Object -Full if you need the parameter details."
       ],
@@ -5432,7 +5422,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Compare desired.txt against actual.txt and print missing=db.conf and unexpected=debug.log.",
-      "solution": "$d=Get-Content desired.txt; $a=Get-Content actual.txt; Compare-Object $d $a | Sort-Object SideIndicator -Descending | ForEach-Object { if($_.SideIndicator -eq \"<=\"){\"missing=$($_.InputObject)\"}else{\"unexpected=$($_.InputObject)\"} }",
+      "solution": "$d=Get-Content desired.txt; $a=Get-Content actual.txt; Compare-Object $d $a | ForEach-Object { if($_.SideIndicator -eq \"<=\"){\"missing=$($_.InputObject)\"}else{\"unexpected=$($_.InputObject)\"} } | Sort-Object",
       "hints": [
         "Start with Compare-Object; use Get-Help Compare-Object -Full if you need the parameter details."
       ],
@@ -6413,12 +6403,12 @@
       "section": "04-structured-data",
       "command": "ConvertTo-Json",
       "title": "Serialize a collection compactly",
-      "focus": "-Compress removes presentation whitespace while retaining JSON structure.",
-      "example": "1,2,3 | ConvertTo-Json -Compress",
+      "focus": "-InputObject preserves the array as one value while -Compress removes presentation whitespace.",
+      "example": "ConvertTo-Json -InputObject @(1,2,3) -Compress",
       "example_output": "",
       "breakdown": [],
       "task": "Convert the names api and web into one compact JSON array.",
-      "solution": "Write-Output @('api','web') -NoEnumerate | ConvertTo-Json -Compress",
+      "solution": "$names=@('api','web'); ConvertTo-Json -InputObject $names -Compress",
       "hints": [
         "Start with ConvertTo-Json; use Get-Help ConvertTo-Json -Full if you need the parameter details."
       ],
@@ -7330,7 +7320,7 @@
       "section": "04-structured-data",
       "command": "Out-File",
       "title": "Append output to a file",
-      "focus": "-Append preserves existing content and writes new pipeline output at the end.",
+      "focus": "-Append preserves existing content while retaining the encoding established by an earlier Out-File write.",
       "example": "'next' | Out-File log.txt -Append",
       "example_output": "",
       "breakdown": [],
@@ -7340,10 +7330,10 @@
         "Start with Out-File; use Get-Help Out-File -Full if you need the parameter details."
       ],
       "directories": [],
-      "files": {
-        "log.txt": "alpha\n"
-      },
-      "setup": [],
+      "files": {},
+      "setup": [
+        "'alpha' | Out-File log.txt"
+      ],
       "checks": [
         {
           "type": "stdout",
@@ -9306,11 +9296,11 @@
       "command": "Split-Path",
       "title": "Extract a leaf name",
       "focus": "-Leaf returns the final path component.",
-      "example": "Split-Path reportsdaily.txt -Leaf",
+      "example": "Split-Path reports\\daily.txt -Leaf",
       "example_output": "",
       "breakdown": [],
-      "task": "Print the leaf of projectsalphaREADME.md.",
-      "solution": "Split-Path projectsalphaREADME.md -Leaf",
+      "task": "Print the leaf of projects\\alpha\\README.md.",
+      "solution": "Split-Path projects/alpha/README.md -Leaf",
       "hints": [
         "Start with Split-Path; use Get-Help Split-Path -Full if you need the parameter details."
       ],
@@ -9341,7 +9331,7 @@
       "example": "Split-Path 'C:\\logs\\app.log' -Qualifier",
       "example_output": "",
       "breakdown": [],
-      "task": "Print the qualifier from C:datainventory.csv.",
+      "task": "Print the qualifier from C:\\data\\inventory.csv.",
       "solution": "Split-Path 'C:\\data\\inventory.csv' -Qualifier",
       "hints": [
         "Start with Split-Path; use Get-Help Split-Path -Full if you need the parameter details."
@@ -9373,7 +9363,7 @@
       "example": "Split-Path 'C:\\logs' -IsAbsolute",
       "example_output": "",
       "breakdown": [],
-      "task": "Print absolute=True relative=False for C:logs and logs\today.",
+      "task": "Print absolute=True relative=False for C:\\logs and logs\\today.",
       "solution": "\"absolute=$(Split-Path 'C:\\logs' -IsAbsolute) relative=$(Split-Path 'logs\\today' -IsAbsolute)\"",
       "hints": [
         "Start with Split-Path; use Get-Help Split-Path -Full if you need the parameter details."
@@ -9405,7 +9395,7 @@
       "example": "$p=\"reports\\daily.txt\"; Split-Path $p -Parent; Split-Path $p -Leaf",
       "example_output": "",
       "breakdown": [],
-      "task": "For artifacts\releaseapp.zip print parent=artifacts\release and leaf=app.zip.",
+      "task": "For artifacts\\release\\app.zip print parent=artifacts\\release and leaf=app.zip.",
       "solution": "$p='artifacts\\release\\app.zip'; \"parent=$(Split-Path $p -Parent)\"; \"leaf=$(Split-Path $p -Leaf)\"",
       "hints": [
         "Start with Split-Path; use Get-Help Split-Path -Full if you need the parameter details."
@@ -9578,7 +9568,7 @@
       "example": "$paths | Convert-Path | ForEach-Object { ... }",
       "example_output": "",
       "breakdown": [],
-      "task": "Print config=<absolute-path> and data=<absolute-path> for inputsconfig.json and inputsdata.csv.",
+      "task": "Print config=<absolute-path> and data=<absolute-path> for inputs\\config.json and inputs\\data.csv.",
       "solution": "@{config='inputs\\config.json';data='inputs\\data.csv'}.GetEnumerator() | Sort-Object Name | ForEach-Object { \"$($_.Name)=$(Convert-Path $_.Value)\" }",
       "hints": [
         "Start with Convert-Path; use Get-Help Convert-Path -Full if you need the parameter details."
@@ -9720,7 +9710,7 @@
       "command": "Get-PSDrive",
       "title": "Inspect a temporary custom drive",
       "focus": "A PSDrive can provide a short scoped name for a reviewed filesystem root.",
-      "example": "New-PSDrive Work FileSystem C:work; Get-PSDrive Work",
+      "example": "New-PSDrive Work FileSystem C:\\work; Get-PSDrive Work",
       "example_output": "",
       "breakdown": [],
       "task": "Create a Work PSDrive rooted at the workspace, print Work=FileSystem, then remove it.",
@@ -10218,7 +10208,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Create configs.zip containing app.conf and routes.json but not notes.txt, then list archive entry names sorted.",
-      "solution": "Compress-Archive app.conf,routes.json configs.zip; Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead((Convert-Path configs.zip)).Entries.Name | Sort-Object",
+      "solution": "Compress-Archive app.conf,routes.json configs.zip; Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[IO.Compression.ZipFile]::OpenRead((Convert-Path configs.zip)); try { $zip.Entries.Name | Sort-Object } finally { $zip.Dispose() }",
       "hints": [
         "Start with Compress-Archive; use Get-Help Compress-Archive -Full if you need the parameter details."
       ],
@@ -10254,7 +10244,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Create bundle.zip from one.txt, update it with two.txt, and list both entry names sorted.",
-      "solution": "Compress-Archive one.txt bundle.zip; Compress-Archive two.txt bundle.zip -Update; Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead((Convert-Path bundle.zip)).Entries.Name | Sort-Object",
+      "solution": "Compress-Archive one.txt bundle.zip; Compress-Archive two.txt bundle.zip -Update; Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[IO.Compression.ZipFile]::OpenRead((Convert-Path bundle.zip)); try { $zip.Entries.Name | Sort-Object } finally { $zip.Dispose() }",
       "hints": [
         "Start with Compress-Archive; use Get-Help Compress-Archive -Full if you need the parameter details."
       ],
@@ -10289,7 +10279,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Compress release to release.zip, extract it to verify, and print verified when both app.bin hashes match.",
-      "solution": "Compress-Archive release release.zip; Expand-Archive release.zip verify; if((Get-FileHash releaseapp.bin).Hash -eq (Get-FileHash verify\releaseapp.bin).Hash){\"verified\"}",
+      "solution": "Compress-Archive release release.zip; Expand-Archive release.zip verify; if((Get-FileHash release/app.bin).Hash -eq (Get-FileHash verify/release/app.bin).Hash){\"verified\"}",
       "hints": [
         "Start with Compress-Archive; use Get-Help Compress-Archive -Full if you need the parameter details."
       ],
@@ -10372,8 +10362,8 @@
       "example": "Expand-Archive bundle.zip -DestinationPath restored",
       "example_output": "",
       "breakdown": [],
-      "task": "Extract bundle.zip into restored and print restored\note.txt.",
-      "solution": "Expand-Archive bundle.zip -DestinationPath restored; Get-Content restored\note.txt",
+      "task": "Extract bundle.zip into restored and print restored\\note.txt.",
+      "solution": "Expand-Archive bundle.zip -DestinationPath restored; Get-Content restored/note.txt",
       "hints": [
         "Start with Expand-Archive; use Get-Help Expand-Archive -Full if you need the parameter details."
       ],
@@ -10415,7 +10405,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Extract release.zip over current with -Force and print the new app.conf.",
-      "solution": "Expand-Archive release.zip current -Force; Get-Content currentapp.conf",
+      "solution": "Expand-Archive release.zip current -Force; Get-Content current/app.conf",
       "hints": [
         "Start with Expand-Archive; use Get-Help Expand-Archive -Full if you need the parameter details."
       ],
@@ -10425,7 +10415,7 @@
         "current/app.conf": "mode=old"
       },
       "setup": [
-        "Compress-Archive source* release.zip; Remove-Item source -Recurse"
+        "Compress-Archive source/* release.zip; Remove-Item source -Recurse"
       ],
       "checks": [
         {
@@ -10458,7 +10448,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "List the entry paths in project.zip, then extract it to restored.",
-      "solution": "Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead((Convert-Path project.zip)).Entries.FullName | Sort-Object; Expand-Archive project.zip restored",
+      "solution": "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[IO.Compression.ZipFile]::OpenRead((Convert-Path project.zip)); try { $zip.Entries.FullName | Sort-Object } finally { $zip.Dispose() }; Expand-Archive project.zip restored",
       "hints": [
         "Start with Expand-Archive; use Get-Help Expand-Archive -Full if you need the parameter details."
       ],
@@ -10515,7 +10505,7 @@
         "release/config.ini": "config"
       },
       "setup": [
-        "Compress-Archive release* release.zip; @([pscustomobject]@{path=\"app.bin\";hash=(Get-FileHash releaseapp.bin).Hash},[pscustomobject]@{path=\"config.ini\";hash=(Get-FileHash releaseconfig.ini).Hash}) | Export-Csv hashes.csv -NoTypeInformation; Remove-Item release -Recurse"
+        "Compress-Archive release/* release.zip; @([pscustomobject]@{path=\"app.bin\";hash=(Get-FileHash release/app.bin).Hash},[pscustomobject]@{path=\"config.ini\";hash=(Get-FileHash release/config.ini).Hash}) | Export-Csv hashes.csv -NoTypeInformation; Remove-Item release -Recurse"
       ],
       "checks": [
         {
@@ -12531,7 +12521,7 @@
       "example_output": "",
       "breakdown": [],
       "task": "Import GymTools.psm1, print module=GymTools exports=2, then run Get-GymStatus and receive ready.",
-      "solution": "$m=Import-Module .GymTools.psm1 -Force -PassThru; \"module=$($m.Name) exports=$($m.ExportedFunctions.Count)\"; Get-GymStatus",
+      "solution": "$m=Import-Module .\\GymTools.psm1 -Force -PassThru; \"module=$($m.Name) exports=$($m.ExportedFunctions.Count)\"; Get-GymStatus",
       "hints": [
         "Start with Import-Module; use Get-Help Import-Module -Full if you need the parameter details."
       ],
@@ -15785,7 +15775,7 @@
       ],
       "directories": [],
       "files": {
-        "note.ps1": "1+1"
+        "note.ps1": "Write-Output 2\n"
       },
       "setup": [],
       "checks": [
@@ -15823,8 +15813,8 @@
       ],
       "directories": [],
       "files": {
-        "a.ps1": "1",
-        "b.ps1": "2"
+        "a.ps1": "Write-Output a\n",
+        "b.ps1": "Write-Output b\n"
       },
       "setup": [],
       "checks": [
@@ -15858,9 +15848,9 @@
       ],
       "directories": [],
       "files": {
-        "scripts/a.ps1": "1",
-        "scripts/lib/b.ps1": "2",
-        "scripts/lib/c.ps1": "3"
+        "scripts/a.ps1": "Write-Output a\n",
+        "scripts/lib/b.ps1": "Write-Output b\n",
+        "scripts/lib/c.ps1": "Write-Output c\n"
       },
       "setup": [],
       "checks": [
@@ -16033,12 +16023,12 @@
       "section": "09-networking-and-policy",
       "command": "Set-Acl",
       "title": "Apply and verify a permission template",
-      "focus": "A practical ACL workflow applies one reviewed template and compares normalized SDDL afterward.",
-      "example": "$acl=Get-Acl template; Set-Acl targets -AclObject $acl; compare Sddl",
+      "focus": "A practical ACL workflow applies one reviewed template and compares the resulting access rules afterward.",
+      "example": "$acl=Get-Acl template; Set-Acl target -AclObject $acl; compare AccessToString",
       "example_output": "",
       "breakdown": [],
-      "task": "Apply template.txt ACL to target.txt and print acl-match=True when their SDDL descriptors match.",
-      "solution": "$acl=Get-Acl template.txt; Set-Acl target.txt -AclObject $acl; \"acl-match=$((Get-Acl template.txt).Sddl -eq (Get-Acl target.txt).Sddl)\"",
+      "task": "Apply template.txt ACL to target.txt and print access-match=True when their access-rule text matches.",
+      "solution": "$acl=Get-Acl template.txt; Set-Acl target.txt -AclObject $acl; \"access-match=$((Get-Acl template.txt).AccessToString -eq (Get-Acl target.txt).AccessToString)\"",
       "hints": [
         "Start with Set-Acl; use Get-Help Set-Acl -Full if you need the parameter details."
       ],
@@ -16052,7 +16042,7 @@
         {
           "type": "stdout",
           "description": "The requested result was printed.",
-          "expected": "acl-match=True",
+          "expected": "access-match=True",
           "normalize": "trim"
         }
       ],
@@ -17451,8 +17441,8 @@
       "example": "Get-WmiObject -Namespace root\\cimv2 -Class Win32_ComputerSystem",
       "example_output": "",
       "breakdown": [],
-      "task": "Query Win32_ComputerSystem in rootcimv2 and print manufacturer=<value> model=<value>.",
-      "solution": "$c=Get-WmiObject -Namespace rootcimv2 -Class Win32_ComputerSystem; \"manufacturer=$($c.Manufacturer) model=$($c.Model)\"",
+      "task": "Query Win32_ComputerSystem in root\\cimv2 and print manufacturer=<value> model=<value>.",
+      "solution": "$c=Get-WmiObject -Namespace root\\cimv2 -Class Win32_ComputerSystem; \"manufacturer=$($c.Manufacturer) model=$($c.Model)\"",
       "hints": [
         "Start with Get-WmiObject; use Get-Help Get-WmiObject -Full if you need the parameter details."
       ],

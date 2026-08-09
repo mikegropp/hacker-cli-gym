@@ -20,6 +20,51 @@ const outputPath = path.join(root, 'curriculum', 'powershell.json');
 const base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
 const progressions = Object.assign({}, discovery, files, pipeline, data, output, security, runtime, system, network, administration);
 const stageNames = ['Orientation', 'Useful options', 'Focused results', 'Pipeline composition', 'Practical workflow'];
+const progressionFiles = [
+  '01-discovery.mjs',
+  '02-files.mjs',
+  '03-pipeline.mjs',
+  '04-data.mjs',
+  '05-output.mjs',
+  '06-security.mjs',
+  '07-runtime.mjs',
+  '08-system.mjs',
+  '09-network.mjs',
+  '10-administration.mjs',
+];
+
+function findSuspiciousStringEscape(source) {
+  let quote = null;
+  let line = 1;
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index];
+    if (character === '\n') {
+      line++;
+      continue;
+    }
+    if (quote === null) {
+      if (character === "'" || character === '"' || character === '`') quote = character;
+      continue;
+    }
+    if (character === quote) {
+      quote = null;
+      continue;
+    }
+    if (character === '\\') {
+      const escaped = source[++index];
+      if (!"bfnrtv0xu'\"\\`\n\r".includes(escaped)) return { line, escaped };
+    }
+  }
+  return null;
+}
+
+for (const filename of progressionFiles) {
+  const source = fs.readFileSync(path.join(here, 'powershell-progressions', filename), 'utf8');
+  const suspicious = findSuspiciousStringEscape(source);
+  if (suspicious) {
+    throw new Error(`${filename}:${suspicious.line} contains a suspicious \\${suspicious.escaped} string escape; double the backslash or use a forward slash.`);
+  }
+}
 
 if (base.lessons.length !== 100) throw new Error(`Expected 100 PowerShell seed lessons; found ${base.lessons.length}.`);
 
@@ -111,6 +156,13 @@ const ids = lessons.map(item => item.id);
 const tasks = lessons.map(item => item.task);
 if (new Set(ids).size !== 500) throw new Error('PowerShell lesson IDs must be unique.');
 if (new Set(tasks).size !== 500) throw new Error('PowerShell lesson tasks must be unique.');
+for (const item of lessons) {
+  for (const field of ['title', 'focus', 'example', 'task', 'solution']) {
+    if (/[\x00-\x1f]/.test(item[field] ?? '')) {
+      throw new Error(`${item.id} has a control character in ${field}; check for an unescaped Windows path.`);
+    }
+  }
+}
 
 fs.writeFileSync(outputPath, `${JSON.stringify(catalog, null, 2)}\n`);
 console.log(`Generated ${lessons.length} PowerShell exercises in ${outputPath}`);

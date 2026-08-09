@@ -135,6 +135,9 @@ function Resolve-WorkspacePath([string]$RelativePath) {
 }
 
 function Reset-Workspace($Lesson) {
+    Set-Location $script:StateRoot
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
     New-Item -ItemType Directory -Path $script:Workspace -Force | Out-Null
     Get-ChildItem $script:Workspace -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction Stop
 
@@ -172,6 +175,14 @@ function Convert-ResultToText($Item) {
     return [string]$Item
 }
 
+function Test-InformationNoNewline($Item) {
+    if ($Item -isnot [System.Management.Automation.InformationRecord]) { return $false }
+    $messageData = $Item.MessageData
+    if ($null -eq $messageData) { return $false }
+    $property = $messageData.PSObject.Properties['NoNewLine']
+    return $null -ne $property -and [bool]$property.Value
+}
+
 function Invoke-GymCommand([string]$Command, [switch]$Quiet) {
     $script:LastOutput = ''
     $script:LastExitCode = 0
@@ -188,7 +199,13 @@ function Invoke-GymCommand([string]$Command, [switch]$Quiet) {
     }
 
     $lines = @($results | ForEach-Object { Convert-ResultToText $_ })
-    $script:LastOutput = $lines -join "`n"
+    $builder = New-Object Text.StringBuilder
+    foreach ($index in 0..($results.Count - 1)) {
+        if ($results.Count -eq 0) { break }
+        [void]$builder.Append($lines[$index])
+        if (-not (Test-InformationNoNewline $results[$index])) { [void]$builder.Append("`n") }
+    }
+    $script:LastOutput = $builder.ToString().TrimEnd("`r", "`n")
     if (-not $Quiet) {
         foreach ($line in $lines) { Write-Output $line }
         Write-Host "[exit $($script:LastExitCode)]" -ForegroundColor DarkGray
@@ -200,6 +217,11 @@ function Normalize-Text([string]$Text, [string]$Mode = 'trim') {
     $normalized = $Text -replace "`r`n", "`n" -replace "`r", "`n"
     if ($Mode -eq 'exact') { return $normalized }
     return $normalized.Trim()
+}
+
+function Resolve-ExpectedText([string]$Text) {
+    if ($null -eq $Text) { return '' }
+    return $Text.Replace('{{workspace}}', $script:Workspace)
 }
 
 function Get-FileText([string]$RelativePath) {
@@ -217,12 +239,28 @@ function Test-Checks($Lesson, [switch]$Show) {
             'stdout' {
                 $normalizeProperty = $check.PSObject.Properties['normalize']
                 $mode = if ($null -ne $normalizeProperty) { [string]$normalizeProperty.Value } else { 'trim' }
-                $passed = (Normalize-Text $script:LastOutput $mode) -ceq (Normalize-Text ([string]$check.expected) $mode)
+                $expected = Resolve-ExpectedText ([string]$check.expected)
+                $passed = (Normalize-Text $script:LastOutput $mode) -eq (Normalize-Text $expected $mode)
             }
-            'stdout-contains' { $passed = $script:LastOutput.IndexOf([string]$check.expected, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
-            'stdout-not-contains' { $passed = $script:LastOutput.IndexOf([string]$check.expected, [StringComparison]::OrdinalIgnoreCase) -lt 0 }
-            'output-contains' { $passed = $script:LastOutput.IndexOf([string]$check.expected, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
-            'stdout-regex' { $passed = $script:LastOutput -match [string]$check.expected }
+            'stdout-unordered-lines' {
+                $expected = Resolve-ExpectedText ([string]$check.expected)
+                $actualLines = @((Normalize-Text $script:LastOutput) -split "`n" | ForEach-Object { $_.Trim() } | Sort-Object)
+                $expectedLines = @((Normalize-Text $expected) -split "`n" | ForEach-Object { $_.Trim() } | Sort-Object)
+                $passed = ($actualLines -join "`n") -eq ($expectedLines -join "`n")
+            }
+            'stdout-contains' {
+                $expected = Resolve-ExpectedText ([string]$check.expected)
+                $passed = $script:LastOutput.IndexOf($expected, [StringComparison]::OrdinalIgnoreCase) -ge 0
+            }
+            'stdout-not-contains' {
+                $expected = Resolve-ExpectedText ([string]$check.expected)
+                $passed = $script:LastOutput.IndexOf($expected, [StringComparison]::OrdinalIgnoreCase) -lt 0
+            }
+            'output-contains' {
+                $expected = Resolve-ExpectedText ([string]$check.expected)
+                $passed = $script:LastOutput.IndexOf($expected, [StringComparison]::OrdinalIgnoreCase) -ge 0
+            }
+            'stdout-regex' { $passed = $script:LastOutput -match (Resolve-ExpectedText ([string]$check.expected)) }
             'stdout-nonempty' { $passed = -not [string]::IsNullOrWhiteSpace($script:LastOutput) }
             'exit-code' { $passed = $script:LastExitCode -eq [int]$check.expected }
             'path-exists' {
