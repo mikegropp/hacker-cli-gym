@@ -41,8 +41,9 @@ updates. Paths must be relative to the disposable lesson workspace.
 
 Both runners support the common checks used by the generated catalogs:
 
-- `stdout`, `stdout-contains`, `stdout-not-contains`, `output-contains`,
-  `stdout-nonempty`, `stdout-regex`, and `exit-code`;
+- `stdout`, `stdout-unordered-lines`, `stdout-contains`,
+  `stdout-not-contains`, `output-contains`, `stdout-nonempty`,
+  `stdout-regex`, and `exit-code`;
 - `path-exists`, `path-not-exists`, `file-content`,
   `file-content-contains`, and `file-equals`.
 

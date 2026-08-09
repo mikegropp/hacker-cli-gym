@@ -113,6 +113,7 @@ Linux:
 
 ```console
 ./gym                         # next unfinished rep
+./gym daily                   # one daily rep: the next unfinished exercise
 ./gym run 151                 # run by global exercise number
 ./gym run cut                 # first unfinished cut stage
 ./gym run linux-cut-5         # run by exact lesson ID
@@ -126,6 +127,7 @@ PowerShell:
 
 ```powershell
 .\gym.ps1 start
+.\gym.ps1 daily              # one daily rep: the next unfinished exercise
 .\gym.ps1 run 26
 .\gym.ps1 run Get-ChildItem
 .\gym.ps1 run powershell-get-childitem-5

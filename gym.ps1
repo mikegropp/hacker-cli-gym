@@ -503,6 +503,7 @@ Hacker CLI Gym - 500 outcome-graded PowerShell exercises on Windows
 
 Usage:
   .\gym.ps1 start                 start the next unfinished rep
+  .\gym.ps1 daily                 open one daily rep
   .\gym.ps1 run Get-ChildItem     run by command, number, or lesson ID
   .\gym.ps1 list                  list all 500 PowerShell reps
   .\gym.ps1 status                show progress, XP, and level

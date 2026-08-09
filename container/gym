@@ -782,6 +782,7 @@ Hacker CLI Gym — a disposable, outcome-graded Linux command line
 
 Usage inside the image:
   gym start          start the next unfinished rep
+  gym daily          open one daily rep (the next unfinished rep)
   gym run awk        run by command, number, or lesson ID
   gym list           list all 500 Linux reps
   gym status         show progress, XP, level, and streak
