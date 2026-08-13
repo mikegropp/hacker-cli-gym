@@ -2335,14 +2335,14 @@
       "command": "Get-Module",
       "title": "Discover available modules",
       "about": "Get-Module inspects modules loaded in the session or installed on the module search path.",
-      "example": "Get-Module -ListAvailable Microsoft.PowerShell.Utility",
-      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   3.1.0.0 Microsoft.PowerShell.Utility",
+      "example": "Get-Module -ListAvailable Microsoft.PowerShell.Archive",
+      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   1.0.1.0 Microsoft.PowerShell.Archive",
       "breakdown": [
         "-ListAvailable searches installed modules.",
         "The name narrows the result to a built-in module."
       ],
-      "task": "Print the name of the installed Microsoft.PowerShell.Utility module.",
-      "solution": "Get-Module -ListAvailable Microsoft.PowerShell.Utility | Select-Object -First 1 -ExpandProperty Name",
+      "task": "Print the name of the installed Microsoft.PowerShell.Archive module.",
+      "solution": "Get-Module -ListAvailable Microsoft.PowerShell.Archive | Select-Object -First 1 -ExpandProperty Name",
       "hints": [
         "Use -ListAvailable, then select the first Name."
       ],
@@ -2355,7 +2355,7 @@
         {
           "type": "stdout",
           "description": "The built-in utility module name was printed.",
-          "expected": "Microsoft.PowerShell.Utility"
+          "expected": "Microsoft.PowerShell.Archive"
         }
       ],
       "completion": "Modules package commands and can be discovered before they are imported."
@@ -2367,14 +2367,14 @@
       "command": "Import-Module",
       "title": "Load a built-in module",
       "about": "Import-Module loads commands from a module into the current PowerShell session; this rep allows only a built-in module.",
-      "example": "Import-Module Microsoft.PowerShell.Utility -PassThru",
-      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   3.1.0.0 Microsoft.PowerShell.Utility",
+      "example": "Import-Module Microsoft.PowerShell.Archive -PassThru",
+      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   1.0.1.0 Microsoft.PowerShell.Archive",
       "breakdown": [
         "The module name resolves through PSModulePath.",
         "-PassThru returns the loaded module object."
       ],
-      "task": "Import Microsoft.PowerShell.Utility and print its name.",
-      "solution": "Import-Module Microsoft.PowerShell.Utility -PassThru | Select-Object -ExpandProperty Name",
+      "task": "Import Microsoft.PowerShell.Archive and print its name.",
+      "solution": "Import-Module Microsoft.PowerShell.Archive -PassThru | Select-Object -ExpandProperty Name",
       "hints": [
         "Use -PassThru, then expand Name."
       ],
@@ -2387,7 +2387,7 @@
         {
           "type": "stdout",
           "description": "The imported built-in module name was printed.",
-          "expected": "Microsoft.PowerShell.Utility"
+          "expected": "Microsoft.PowerShell.Archive"
         }
       ],
       "completion": "Import only trusted modules and review their source and scope before use."
@@ -3145,7 +3145,7 @@
         "ObjectClass distinguishes users from nested groups."
       ],
       "task": "Resolve S-1-5-32-544, then print the object class of its first group member.",
-      "solution": "Get-LocalGroup -SID 'S-1-5-32-544' | Get-LocalGroupMember | Select-Object -First 1 -ExpandProperty ObjectClass",
+      "solution": "$members=@(Get-LocalGroup -SID 'S-1-5-32-544' | Get-LocalGroupMember); $members[0].ObjectClass",
       "hints": [
         "Resolve the group by its invariant SID, then select the first member and expand ObjectClass."
       ],

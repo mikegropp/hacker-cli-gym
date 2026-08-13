@@ -19438,14 +19438,14 @@
       "command": "Get-Module",
       "title": "Discover available modules",
       "focus": "Get-Module inspects modules loaded in the session or installed on the module search path.",
-      "example": "Get-Module -ListAvailable Microsoft.PowerShell.Utility",
-      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   3.1.0.0 Microsoft.PowerShell.Utility",
+      "example": "Get-Module -ListAvailable Microsoft.PowerShell.Archive",
+      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   1.0.1.0 Microsoft.PowerShell.Archive",
       "breakdown": [
         "-ListAvailable searches installed modules.",
         "The name narrows the result to a built-in module."
       ],
-      "task": "Print the name of the installed Microsoft.PowerShell.Utility module.",
-      "solution": "Get-Module -ListAvailable Microsoft.PowerShell.Utility | Select-Object -First 1 -ExpandProperty Name",
+      "task": "Print the name of the installed Microsoft.PowerShell.Archive module.",
+      "solution": "Get-Module -ListAvailable Microsoft.PowerShell.Archive | Select-Object -First 1 -ExpandProperty Name",
       "hints": [
         "Use -ListAvailable, then select the first Name.",
         "Use the checker as a specification: The built-in utility module name was printed.",
@@ -19458,7 +19458,7 @@
         {
           "type": "stdout",
           "description": "The built-in utility module name was printed.",
-          "expected": "Microsoft.PowerShell.Utility"
+          "expected": "Microsoft.PowerShell.Archive"
         }
       ],
       "completion": "Modules package commands and can be discovered before they are imported.",
@@ -19494,8 +19494,8 @@
         "Without -ListAvailable, Get-Module reports modules currently imported in the session.",
         "The example uses different values; adapt its structure to the mission fixture."
       ],
-      "task": "Import Microsoft.PowerShell.Utility and print its loaded module name.",
-      "solution": "Import-Module Microsoft.PowerShell.Utility; Get-Module Microsoft.PowerShell.Utility | Select-Object -ExpandProperty Name",
+      "task": "Import Microsoft.PowerShell.Archive and print its loaded module name.",
+      "solution": "Import-Module Microsoft.PowerShell.Archive; Get-Module Microsoft.PowerShell.Archive | Select-Object -ExpandProperty Name",
       "hints": [
         "Use the checker as a specification: The requested result was printed.",
         "Try this command shape, replacing placeholders with fixture values: Import-Module <value> ; Get-Module <value> | Select-Object -ExpandProperty <value>",
@@ -19508,7 +19508,7 @@
         {
           "type": "stdout",
           "description": "The output exactly matched the mission for “List loaded modules”.",
-          "expected": "Microsoft.PowerShell.Utility",
+          "expected": "Microsoft.PowerShell.Archive",
           "normalize": "trim"
         }
       ],
@@ -19548,8 +19548,8 @@
         "-ListAvailable discovers installed versions even when the module is not loaded.",
         "The example uses different values; adapt its structure to the mission fixture."
       ],
-      "task": "Print a non-empty version for Microsoft.PowerShell.Utility from installed modules.",
-      "solution": "Get-Module Microsoft.PowerShell.Utility -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1 -ExpandProperty Version",
+      "task": "Print a non-empty version for Microsoft.PowerShell.Archive from installed modules.",
+      "solution": "Get-Module Microsoft.PowerShell.Archive -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1 -ExpandProperty Version",
       "hints": [
         "Use the checker as a specification: An installed module version was printed.",
         "Try this command shape, replacing placeholders with fixture values: Get-Module <value> -ListAvailable | Sort-Object <value> -Descending | Select-Object -First <value> -ExpandProperty <value>",
@@ -19599,8 +19599,8 @@
         "A loaded module records the command names it exports.",
         "The example uses different values; adapt its structure to the mission fixture."
       ],
-      "task": "Import Microsoft.PowerShell.Utility and print Get-Date and Get-Random from its exported command keys, sorted.",
-      "solution": "Import-Module Microsoft.PowerShell.Utility; (Get-Module Microsoft.PowerShell.Utility).ExportedCommands.Keys | Where-Object { $_ -in \"Get-Date\",\"Get-Random\" } | Sort-Object",
+      "task": "Import Microsoft.PowerShell.Archive and print Compress-Archive and Expand-Archive from its exported command keys, sorted.",
+      "solution": "Import-Module Microsoft.PowerShell.Archive; (Get-Module Microsoft.PowerShell.Archive).ExportedCommands.Keys | Where-Object { $_ -in \"Compress-Archive\",\"Expand-Archive\" } | Sort-Object",
       "hints": [
         "Use the checker as a specification: The requested result was printed.",
         "Try this command shape, replacing placeholders with fixture values: Import-Module <value> ; <values> | Where-Object { $_ -in <value> } | Sort-Object",
@@ -19613,7 +19613,7 @@
         {
           "type": "stdout",
           "description": "The output exactly matched the mission for “Inspect exported commands”.",
-          "expected": "Get-Date\nGet-Random",
+          "expected": "Compress-Archive\nExpand-Archive",
           "normalize": "trim"
         }
       ],
@@ -19632,12 +19632,12 @@
       ],
       "prerequisites": [
         "Sort-Object",
-        "Where-Object"
+        "Where-Object",
+        "Compress-Archive",
+        "Expand-Archive"
       ],
       "introduced_inline": [
-        "Import-Module",
-        "Get-Date",
-        "Get-Random"
+        "Import-Module"
       ],
       "legacy_ids": [],
       "requires_success": true,
@@ -19661,11 +19661,11 @@
         "Grouping the newest available module versions by name creates a concise capability inventory.",
         "The example uses different values; adapt its structure to the mission fixture."
       ],
-      "task": "Print name=version for the newest available Microsoft.PowerShell.Management and Microsoft.PowerShell.Utility modules.",
-      "solution": "Get-Module Microsoft.PowerShell.Management,Microsoft.PowerShell.Utility -ListAvailable | Sort-Object Name,@{Expression=\"Version\";Descending=$true} | Group-Object Name | Sort-Object Name | ForEach-Object { \"$($_.Name)=$($_.Group[0].Version)\" }",
+      "task": "Print name=version for the newest available Microsoft.PowerShell.Archive module.",
+      "solution": "Get-Module Microsoft.PowerShell.Archive -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1 | ForEach-Object { \"$($_.Name)=$($_.Version)\" }",
       "hints": [
         "Use the checker as a specification: The requested value was included.",
-        "Try this command shape, replacing placeholders with fixture values: Get-Module <value> -ListAvailable | Sort-Object <value> ; <value> | Group-Object <value> | Sort-Object <value> | ForEach-Object { <value> }",
+        "Try this command shape, replacing placeholders with fixture values: Get-Module <value> -ListAvailable | Sort-Object <value> -Descending | Select-Object -First <value> | ForEach-Object { <value> }",
         "Use Get-Help Get-Module -Examples to inspect another safe pattern without revealing this fixture's answer."
       ],
       "directories": [],
@@ -19674,13 +19674,8 @@
       "checks": [
         {
           "type": "stdout-contains",
-          "description": "The output included \"Microsoft.PowerShell.Management=\" for “Create a module inventory”.",
-          "expected": "Microsoft.PowerShell.Management="
-        },
-        {
-          "type": "stdout-contains",
-          "description": "The output included \"Microsoft.PowerShell.Utility=\" for “Create a module inventory”.",
-          "expected": "Microsoft.PowerShell.Utility="
+          "description": "The output included \"Microsoft.PowerShell.Archive=\" for “Create a module inventory”.",
+          "expected": "Microsoft.PowerShell.Archive="
         }
       ],
       "completion": "You used Get-Module to complete “Create a module inventory” and verified the requested outcome.",
@@ -19689,7 +19684,6 @@
       "concepts": [
         "Get-Module",
         "pipelines",
-        "command chaining",
         "command substitution",
         "variables",
         "quoting",
@@ -19699,7 +19693,7 @@
       ],
       "prerequisites": [
         "Sort-Object",
-        "Group-Object",
+        "Select-Object",
         "ForEach-Object"
       ],
       "introduced_inline": [],
@@ -19718,14 +19712,14 @@
       "command": "Import-Module",
       "title": "Load a built-in module",
       "focus": "Import-Module loads commands from a module into the current PowerShell session; this rep allows only a built-in module.",
-      "example": "Import-Module Microsoft.PowerShell.Utility -PassThru",
-      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   3.1.0.0 Microsoft.PowerShell.Utility",
+      "example": "Import-Module Microsoft.PowerShell.Archive -PassThru",
+      "example_output": "ModuleType Version Name\n---------- ------- ----\nManifest   1.0.1.0 Microsoft.PowerShell.Archive",
       "breakdown": [
         "The module name resolves through PSModulePath.",
         "-PassThru returns the loaded module object."
       ],
-      "task": "Import Microsoft.PowerShell.Utility and print its name.",
-      "solution": "Import-Module Microsoft.PowerShell.Utility -PassThru | Select-Object -ExpandProperty Name",
+      "task": "Import Microsoft.PowerShell.Archive and print its name.",
+      "solution": "Import-Module Microsoft.PowerShell.Archive -PassThru | Select-Object -ExpandProperty Name",
       "hints": [
         "Use -PassThru, then expand Name.",
         "Use the checker as a specification: The imported built-in module name was printed.",
@@ -19738,7 +19732,7 @@
         {
           "type": "stdout",
           "description": "The imported built-in module name was printed.",
-          "expected": "Microsoft.PowerShell.Utility"
+          "expected": "Microsoft.PowerShell.Archive"
         }
       ],
       "completion": "Import only trusted modules and review their source and scope before use.",
@@ -19774,8 +19768,8 @@
         "-PassThru returns the imported module object for immediate inspection.",
         "The example uses different values; adapt its structure to the mission fixture."
       ],
-      "task": "Import Microsoft.PowerShell.Management with -PassThru and print name=<name>.",
-      "solution": "Import-Module Microsoft.PowerShell.Management -PassThru | ForEach-Object { \"name=$($_.Name)\" }",
+      "task": "Import Microsoft.PowerShell.Archive with -PassThru and print name=<name>.",
+      "solution": "Import-Module Microsoft.PowerShell.Archive -PassThru | ForEach-Object { \"name=$($_.Name)\" }",
       "hints": [
         "Use the checker as a specification: The requested result was printed.",
         "Try this command shape, replacing placeholders with fixture values: Import-Module <value> -PassThru | ForEach-Object { <value> }",
@@ -19788,7 +19782,7 @@
         {
           "type": "stdout",
           "description": "The output exactly matched the mission for “Import with pass-through metadata”.",
-          "expected": "name=Microsoft.PowerShell.Management",
+          "expected": "name=Microsoft.PowerShell.Archive",
           "normalize": "trim"
         }
       ],
@@ -19830,8 +19824,8 @@
         "-Force reloads the selected module when testing updated definitions.",
         "The example uses different values; adapt its structure to the mission fixture."
       ],
-      "task": "Force-import Microsoft.PowerShell.Utility and print loaded=True.",
-      "solution": "Import-Module Microsoft.PowerShell.Utility -Force; \"loaded=$([bool](Get-Module Microsoft.PowerShell.Utility))\"",
+      "task": "Force-import Microsoft.PowerShell.Archive and print loaded=True.",
+      "solution": "Import-Module Microsoft.PowerShell.Archive -Force; \"loaded=$([bool](Get-Module Microsoft.PowerShell.Archive))\"",
       "hints": [
         "Use the checker as a specification: The requested result was printed.",
         "Try this command shape, replacing placeholders with fixture values: Import-Module <value> -Force ; <values>",
@@ -26302,11 +26296,11 @@
         "ObjectClass distinguishes users from nested groups."
       ],
       "task": "Resolve S-1-5-32-544, then print the object class of its first group member.",
-      "solution": "Get-LocalGroup -SID 'S-1-5-32-544' | Get-LocalGroupMember | Select-Object -First 1 -ExpandProperty ObjectClass",
+      "solution": "$members=@(Get-LocalGroup -SID 'S-1-5-32-544' | Get-LocalGroupMember); $members[0].ObjectClass",
       "hints": [
         "Resolve the group by its invariant SID, then select the first member and expand ObjectClass.",
         "Use the checker as a specification: A group member object class was printed.",
-        "Try this command shape, replacing placeholders with fixture values: Get-LocalGroup -SID <value> | Get-LocalGroupMember | Select-Object -First <value> -ExpandProperty <value>"
+        "Try this command shape, replacing placeholders with fixture values: <value> -SID <value> | <value> ; <value>"
       ],
       "directories": [],
       "files": {},
@@ -26323,10 +26317,11 @@
       "concepts": [
         "Get-LocalGroupMember",
         "pipelines",
+        "command chaining",
+        "variables",
         "quoting"
       ],
       "prerequisites": [
-        "Select-Object",
         "Get-LocalGroup"
       ],
       "introduced_inline": [],
