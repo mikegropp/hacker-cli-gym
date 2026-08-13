@@ -1486,8 +1486,8 @@
         "-s selects silent mode.",
         "Exit 0 means the byte sequences match."
       ],
-      "task": "Silently verify that first.txt and second.txt contain identical bytes.",
-      "solution": "cmp -s first.txt second.txt",
+      "task": "Silently verify that first.txt and second.txt contain identical bytes, then print identical.",
+      "solution": "cmp -s first.txt second.txt && echo identical",
       "hints": [
         "Use cmp silent mode."
       ],
@@ -1498,8 +1498,8 @@
       "checks": [
         {
           "type": "stdout",
-          "description": "Silent mode produced no stdout.",
-          "expected": "",
+          "description": "Equality was confirmed after the silent comparison.",
+          "expected": "identical",
           "normalize": "trim"
         },
         {
@@ -1706,10 +1706,19 @@
         "reference.txt": "owner source\n",
         "target.txt": "target\n"
       },
+      "setup": [
+        "chown nobody:nogroup reference.txt"
+      ],
       "checks": [
         {
           "type": "same-owner",
           "description": "target.txt has the reference owner.",
+          "path": "target.txt",
+          "other_path": "reference.txt"
+        },
+        {
+          "type": "same-group",
+          "description": "target.txt has the reference group.",
           "path": "target.txt",
           "other_path": "reference.txt"
         }
@@ -1738,6 +1747,9 @@
         "reference.txt": "group source\n",
         "target.txt": "target\n"
       },
+      "setup": [
+        "chgrp nogroup reference.txt"
+      ],
       "checks": [
         {
           "type": "same-group",
@@ -1902,17 +1914,18 @@
         "Login records are read from the system session database.",
         "Repeated names can represent multiple sessions."
       ],
-      "task": "Run users and observe the current system's login-record result.",
-      "solution": "users",
+      "task": "Run users and print login-records-queried when the query succeeds.",
+      "solution": "users >/dev/null && echo login-records-queried",
       "hints": [
         "No arguments are required; empty output is possible in a container."
       ],
       "files": {},
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The login-record query completed.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The successful login-record query was confirmed.",
+          "expected": "login-records-queried",
+          "normalize": "trim"
         }
       ],
       "completion": "Empty users output does not prove nobody is active; session accounting depends on how the environment records logins."
@@ -1930,17 +1943,18 @@
         "The system session database is queried.",
         "Each record describes a logged-in session."
       ],
-      "task": "Run who and observe the login records available in this environment.",
-      "solution": "who",
+      "task": "Run who and print session-records-queried when the query succeeds.",
+      "solution": "who >/dev/null && echo session-records-queried",
       "hints": [
         "Run the command without options; no records is a valid observation."
       ],
       "files": {},
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The session-record query completed.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The successful session-record query was confirmed.",
+          "expected": "session-records-queried",
+          "normalize": "trim"
         }
       ],
       "completion": "Session accounting is one evidence source. Processes, remote access logs, and orchestration context may tell a different part of the story."
@@ -2113,17 +2127,18 @@
         "-n 5 requests niceness 5.",
         "true exits successfully without work."
       ],
-      "task": "Run true with niceness 5.",
-      "solution": "nice -n 5 true",
+      "task": "Run a shell with niceness 5 and print its NI value.",
+      "solution": "nice -n 5 sh -c 'ps -o ni= -p $$'",
       "hints": [
         "Use nice -n 5 followed by true."
       ],
       "files": {},
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The niced command completed successfully.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The child shell reported niceness 5.",
+          "expected": "5",
+          "normalize": "trim"
         }
       ],
       "completion": "Niceness influences CPU scheduling; it is not a hard resource limit or a guarantee of runtime share."
@@ -2170,17 +2185,18 @@
         "0.2 requests a short fractional-second pause.",
         "Successful sleep produces no output."
       ],
-      "task": "Pause for one tenth of a second.",
-      "solution": "sleep 0.1",
+      "task": "Pause for one tenth of a second, then print resumed.",
+      "solution": "sleep 0.1 && echo resumed",
       "hints": [
         "Use a fractional duration of 0.1."
       ],
       "files": {},
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The short sleep completed.",
-          "expected": 0
+          "type": "stdout",
+          "description": "Execution resumed after the short pause.",
+          "expected": "resumed",
+          "normalize": "trim"
         }
       ],
       "completion": "Sleep-based synchronization is fragile. Prefer an observable readiness condition when coordinating real work."
@@ -2615,41 +2631,35 @@
       "completion": "Use gzip -k when the original file must remain. Compression is not encryption or integrity authentication."
     },
     {
-      "id": "linux-gunzip",
+      "id": "linux-source",
       "order": 83,
-      "section": "09-archives-and-integrity",
-      "command": "gunzip",
-      "title": "Restore gzip-compressed content",
-      "about": "gunzip expands .gz data. This rep creates a synthetic compressed input, then restores it in the disposable workspace.",
-      "example": "gzip note.txt && gunzip note.txt.gz",
-      "example_output": "",
+      "section": "09-automation-and-integrity",
+      "command": "source",
+      "title": "Load shell settings into the current session",
+      "about": "source reads a shell file in the current Bash process, so variables and functions remain available afterward.",
+      "example": "source settings.sh && printf '%s\\n' \"$APP_MODE\"",
+      "example_output": "practice",
       "breakdown": [
-        "gzip creates the test input.",
-        "gunzip restores note.txt after successful compression."
+        "source settings.sh executes the file in the current shell.",
+        "APP_MODE remains available to the following command."
       ],
-      "task": "Compress data.txt and then restore it with gunzip.",
-      "solution": "gzip data.txt && gunzip data.txt.gz",
+      "task": "Source config/lab.env, then print the value of LAB_NAME.",
+      "solution": "source config/lab.env && printf '%s\\n' \"$LAB_NAME\"",
       "hints": [
-        "Create data.txt.gz first, then run gunzip only after success."
+        "Use source with the file path; the variable is then available in this shell."
       ],
       "files": {
-        "data.txt": "restored gzip data\n"
+        "config/lab.env": "LAB_NAME=cli-gym\n"
       },
       "checks": [
         {
-          "type": "file-content",
-          "description": "data.txt was restored exactly.",
-          "path": "data.txt",
-          "expected": "restored gzip data",
+          "type": "stdout",
+          "description": "The sourced LAB_NAME value was printed.",
+          "expected": "cli-gym",
           "normalize": "trim"
-        },
-        {
-          "type": "path-not-exists",
-          "description": "The default gunzip operation removed data.txt.gz.",
-          "path": "data.txt.gz"
         }
       ],
-      "completion": "Decompression can overwrite or create paths. Inspect archive provenance and destination boundaries before extracting untrusted data."
+      "completion": "Sourcing changes the current shell. Read unfamiliar files before sourcing them, because they execute with your shell's permissions."
     },
     {
       "id": "linux-bzip2",
@@ -2688,36 +2698,37 @@
       "completion": "Compression formats trade speed, size, and compatibility. Choose based on the consumer and verify the result."
     },
     {
-      "id": "linux-bunzip2",
+      "id": "linux-find",
       "order": 85,
-      "section": "09-archives-and-integrity",
-      "command": "bunzip2",
-      "title": "Restore bzip2-compressed content",
-      "about": "bunzip2 expands .bz2 files. The default removes the compressed input after successful restoration.",
-      "example": "bzip2 note.txt && bunzip2 note.txt.bz2",
-      "example_output": "",
+      "section": "09-automation-and-integrity",
+      "command": "find",
+      "title": "Find files by name",
+      "about": "find walks directory trees and applies predicates such as -type and -name to each path.",
+      "example": "find logs -type f -name '*.log'",
+      "example_output": "logs/app.log",
       "breakdown": [
-        "A synthetic .bz2 input is created.",
-        "bunzip2 restores the original path."
+        "logs is the search root.",
+        "-type f limits results to files and -name matches the filename pattern."
       ],
-      "task": "Compress data.txt and restore it with bunzip2.",
-      "solution": "bzip2 data.txt && bunzip2 data.txt.bz2",
+      "task": "Find every .conf file below systems and print the paths in sorted order.",
+      "solution": "find systems -type f -name '*.conf' | sort",
       "hints": [
-        "Create the .bz2 input before invoking bunzip2."
+        "Start at systems, restrict the result to files, then match the .conf suffix."
       ],
       "files": {
-        "data.txt": "restored bzip2 data\n"
+        "systems/api/app.conf": "mode=api\n",
+        "systems/db/db.conf": "mode=db\n",
+        "systems/db/readme.txt": "notes\n"
       },
       "checks": [
         {
-          "type": "file-content",
-          "description": "data.txt was restored.",
-          "path": "data.txt",
-          "expected": "restored bzip2 data",
+          "type": "stdout",
+          "description": "Only the two configuration paths were printed in sorted order.",
+          "expected": "systems/api/app.conf\nsystems/db/db.conf",
           "normalize": "trim"
         }
       ],
-      "completion": "Test restoration before treating a compressed file as a sufficient backup."
+      "completion": "find combines a search root with predicates. Quote wildcard patterns so Bash does not expand them before find sees them."
     },
     {
       "id": "linux-xz",
@@ -2756,36 +2767,35 @@
       "completion": "xz often favors compression ratio over speed. The best choice depends on data, time, memory, and compatibility."
     },
     {
-      "id": "linux-unxz",
+      "id": "linux-jq",
       "order": 87,
-      "section": "09-archives-and-integrity",
-      "command": "unxz",
-      "title": "Restore xz-compressed content",
-      "about": "unxz expands .xz files and normally removes the compressed input after success.",
-      "example": "xz note.txt && unxz note.txt.xz",
-      "example_output": "",
+      "section": "09-automation-and-integrity",
+      "command": "jq",
+      "title": "Read a field from JSON",
+      "about": "jq parses JSON and applies filters to structured values instead of treating the document as unstructured text.",
+      "example": "jq -r '.name' service.json",
+      "example_output": "api",
       "breakdown": [
-        "xz creates a synthetic input.",
-        "unxz restores the original path."
+        ".name selects the name property.",
+        "-r prints a string without JSON quotation marks."
       ],
-      "task": "Compress data.txt and restore it with unxz.",
-      "solution": "xz data.txt && unxz data.txt.xz",
+      "task": "Print the owner field from project.json as plain text.",
+      "solution": "jq -r '.owner' project.json",
       "hints": [
-        "Create the .xz input first, then restore it."
+        "Use a property filter beginning with a dot and request raw string output."
       ],
       "files": {
-        "data.txt": "restored xz data\n"
+        "project.json": "{\"name\":\"gym\",\"owner\":\"student\",\"active\":true}\n"
       },
       "checks": [
         {
-          "type": "file-content",
-          "description": "data.txt was restored.",
-          "path": "data.txt",
-          "expected": "restored xz data",
+          "type": "stdout",
+          "description": "The owner value was printed without JSON quotes.",
+          "expected": "student",
           "normalize": "trim"
         }
       ],
-      "completion": "Successful decompression is an observable check; add a trusted digest when exact integrity matters."
+      "completion": "jq filters JSON by structure. Prefer it to grep or sed when field boundaries and data types matter."
     },
     {
       "id": "linux-zip",
@@ -2843,8 +2853,8 @@
         "The original is removed.",
         "unzip restores it after both earlier steps succeed."
       ],
-      "task": "Archive note.txt, remove the original, and restore it with unzip.",
-      "solution": "zip -q bundle.zip note.txt && rm note.txt && unzip -q bundle.zip",
+      "task": "Restore note.txt from bundle.zip with unzip.",
+      "solution": "unzip -q bundle.zip",
       "hints": [
         "Chain zip, rm, and unzip with &&."
       ],
@@ -2854,6 +2864,9 @@
       "packages": [
         "zip",
         "unzip"
+      ],
+      "setup": [
+        "zip -q bundle.zip note.txt && rm note.txt"
       ],
       "checks": [
         {

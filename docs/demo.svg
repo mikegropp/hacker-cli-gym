@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="600" viewBox="0 0 1120 600" role="img" aria-labelledby="title desc">
+  <title id="title">Hacker CLI Gym terminal exercise</title>
+  <desc id="desc">A terminal shows a blind Linux capstone, a learner pipeline, detailed checks, and earned mastery.</desc>
+  <rect width="1120" height="600" rx="18" fill="#111827"/>
+  <rect width="1120" height="50" rx="18" fill="#1f2937"/>
+  <circle cx="28" cy="25" r="7" fill="#fb7185"/>
+  <circle cx="52" cy="25" r="7" fill="#fbbf24"/>
+  <circle cx="76" cy="25" r="7" fill="#4ade80"/>
+  <text x="560" y="31" text-anchor="middle" fill="#d1d5db" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Hacker CLI Gym</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19">
+    <text x="28" y="88" fill="#22d3ee">LINUX DAILY • BLIND CAPSTONE • due review</text>
+    <text x="28" y="125" fill="#f9fafb">MISSION</text>
+    <text x="28" y="157" fill="#d1d5db">Print the number of ERROR records in app.log.</text>
+    <text x="28" y="185" fill="#d1d5db">Copy the changing token into workspace-root .gym-proof.</text>
+    <text x="28" y="232" fill="#22d3ee">gym[150]:~$</text>
+    <text x="170" y="232" fill="#f9fafb" font-size="17">grep '^ERROR' app.log | wc -l &amp;&amp; cp /work/.gym-challenge /work/.gym-proof</text>
+    <text x="28" y="280" fill="#f9fafb">3</text>
+    <text x="28" y="378" fill="#f9fafb">CHECK</text>
+    <text x="28" y="411" fill="#4ade80">[PASS]</text>
+    <text x="112" y="411" fill="#d1d5db">The exact ERROR record count was printed.</text>
+    <text x="28" y="443" fill="#4ade80">[PASS]</text>
+    <text x="112" y="443" fill="#d1d5db">The one-time challenge token was copied.</text>
+    <text x="28" y="489" fill="#4ade80">REP COMPLETE • independent recall</text>
+    <text x="28" y="523" fill="#d1d5db">+100 XP  •  mastered  •  next review in 3 days</text>
+    <text x="28" y="566" fill="#6b7280">Any command or pipeline that produces the requested outcome can pass.</text>
+  </g>
+</svg>

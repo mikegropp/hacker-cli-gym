@@ -10,6 +10,7 @@ export default {
       title: 'Suppress the trailing newline', focus: 'echo -n omits its usual final newline when output must continue on the same line.',
       example: "echo -n 'prefix='", example_output: 'prefix=',
       task: 'Print token=abc123 without a trailing newline.', solution: "echo -n 'token=abc123'", checks: out('token=abc123', 'The text was printed without an added newline.', 'exact'),
+      adversarial_commands: ["echo 'token=abc123'"],
     },
     {
       title: 'Interpret escape sequences', focus: 'Bash echo -e interprets escapes such as newline and tab in a controlled string.',
@@ -35,7 +36,7 @@ export default {
       title: 'Control field width', focus: 'Width specifiers align values into predictable columns without a separate formatting tool.',
       example: "printf '%-10s %5d\\n' api 42", example_output: 'api           42',
       task: 'Print api left-aligned in width 10 and 8080 right-aligned in width 6.',
-      solution: "printf '%-10s %6d\\n' api 8080", checks: out('api          8080', 'The fields were aligned.', 'exact'),
+      solution: "printf '%-10s %6d\\n' api 8080", checks: out('api          8080\n', 'The fields were aligned.', 'exact'),
     },
     {
       title: 'Choose numeric precision', focus: 'A precision on %f controls how many digits appear after the decimal point.',
@@ -54,7 +55,7 @@ export default {
       example: "while IFS=, read -r name value; do printf '%-8s %4d\\n' \"$name\" \"$value\"; done < data.csv", example_output: 'api        42',
       task: 'Read usage.csv and print each name left-aligned width 8, a space, and its value right-aligned width 4.',
       solution: "while IFS=, read -r name value; do printf '%-8s %4d\\n' \"$name\" \"$value\"; done < usage.csv", files: { 'usage.csv': 'api,12\ndatabase,7\nweb,105\n' },
-      checks: out('api        12\ndatabase    7\nweb       105', 'The usage report was formatted.', 'exact'),
+      checks: out('api        12\ndatabase    7\nweb       105\n', 'The usage report was formatted.', 'exact'),
     },
   ],
   tee: [

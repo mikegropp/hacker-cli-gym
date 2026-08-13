@@ -14,12 +14,19 @@ import processes from './linux-progressions/07-processes.mjs';
 import system from './linux-progressions/08-system.mjs';
 import archives from './linux-progressions/09-archives.mjs';
 import networking from './linux-progressions/10-networking.mjs';
+import {
+  buildBreakdown,
+  buildHints,
+  enrichLesson,
+  validateLessonMetadata,
+} from './curriculum-metadata.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const sourcePath = resolve(root, 'curriculum/linux.base.json');
 const outputPath = resolve(root, 'curriculum/linux.json');
 const source = JSON.parse(await readFile(sourcePath, 'utf8'));
+const orderedCommands = source.lessons.map(lesson => lesson.command);
 const progressions = Object.assign(
   {}, navigation, files, reading, text, composition,
   identity, processes, system, archives, networking,
@@ -27,9 +34,32 @@ const progressions = Object.assign(
 
 const stageNames = ['Basics', 'Useful options', 'Focused results', 'Composition', 'Workflow'];
 const difficulties = ['foundation', 'foundation', 'intermediate', 'intermediate', 'advanced'];
+const sectionTitles = [
+  'Navigation and help',
+  'Files and directories',
+  'Reading content',
+  'Text processing',
+  'Composition and comparison',
+  'Identity and permissions',
+  'Processes and execution',
+  'System and storage',
+  'Archives, data, and automation',
+  'Networking and services',
+];
+const sections = sectionTitles.map((title, index) => ({
+  id: String(index + 1).padStart(2, '0'),
+  title,
+  start: index * 50 + 1,
+  end: index * 50 + 50,
+}));
+
+function slugSection(commandIndex) {
+  const index = Math.floor((commandIndex - 1) / 10);
+  return `${String(index + 1).padStart(2, '0')}-${sectionTitles[index].toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}`;
+}
 
 function expandedLesson(base, commandIndex, stage, spec) {
-  const lesson = stage === 1 ? structuredClone(base) : {
+  let lesson = stage === 1 ? structuredClone(base) : {
     id: `${base.id}-${stage}`,
     section: base.section,
     command: base.command,
@@ -37,18 +67,16 @@ function expandedLesson(base, commandIndex, stage, spec) {
     about: `${base.about} ${spec.focus}`,
     example: spec.example,
     example_output: spec.example_output ?? '',
-    breakdown: spec.breakdown ?? [
-      spec.focus,
-      `This is stage ${stage} of the ${base.command} progression.`,
-    ],
+    breakdown: spec.breakdown ?? [],
     task: spec.task,
     solution: spec.solution,
-    hints: spec.hints ?? [spec.focus, `Build the result around ${base.command}.`],
+    hints: spec.hints ?? [],
     directories: spec.directories,
     files: spec.files ?? {},
     symlinks: spec.symlinks,
     setup: spec.setup,
     checks: spec.checks,
+    adversarial_commands: spec.adversarial_commands,
     completion: spec.completion ?? `${spec.focus} You can now use this behavior as part of a larger command-line workflow.`,
   };
 
@@ -57,6 +85,14 @@ function expandedLesson(base, commandIndex, stage, spec) {
   lesson.stage = stage;
   lesson.stage_name = stageNames[stage - 1];
   lesson.difficulty = difficulties[stage - 1];
+  lesson.section = slugSection(commandIndex);
+  lesson.focus = lesson.focus ?? lesson.about;
+  lesson.breakdown = buildBreakdown(lesson, lesson.command);
+  lesson.hints = buildHints(lesson, lesson.command, 'bash');
+  lesson = enrichLesson(lesson, orderedCommands, 'bash');
+  if (lesson.mode === 'capstone') lesson.stage_name = 'Blind section capstone';
+  else if (lesson.stage === 4 && lesson.stage_kind === 'applied') lesson.stage_name = 'Applied use';
+  else if (lesson.stage === 5 && lesson.stage_kind === 'transfer') lesson.stage_name = 'Transfer challenge';
   if (!lesson.directories?.length) delete lesson.directories;
   if (!lesson.symlinks || Object.keys(lesson.symlinks).length === 0) delete lesson.symlinks;
   if (!lesson.setup?.length) delete lesson.setup;
@@ -79,7 +115,7 @@ for (const base of source.lessons) {
   });
 }
 
-if (lessons.length !== 500) throw new Error(`expected 500 lessons, found ${lessons.length}`);
+validateLessonMetadata(lessons, 500);
 
 const catalog = {
   catalog_version: 2,
@@ -88,6 +124,8 @@ const catalog = {
   shell: 'bash',
   command_count: 100,
   stages_per_command: 5,
+  exercise_count: 500,
+  sections,
   lessons,
 };
 

@@ -56,8 +56,18 @@ RUN apt-get -o Acquire::Max-FutureTime=3600 update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/info/* /usr/share/man/*
 
+# Keep source-dependent metadata below the package layer so curriculum edits do
+# not invalidate the comparatively expensive dependency installation.
+ARG GYM_SOURCE_HASH=unknown
+ARG GYM_BUILD_VERSION=local
+
+LABEL org.opencontainers.image.version="${GYM_BUILD_VERSION}" \
+      org.opencontainers.image.revision="${GYM_SOURCE_HASH}" \
+      io.hacker-cli-gym.source-hash="${GYM_SOURCE_HASH}"
+
 COPY container/gym /opt/hacker-cli-gym/gym
 COPY curriculum/linux.json /opt/hacker-cli-gym/curriculum/linux.json
+COPY sample-files /opt/hacker-cli-gym/sample-files
 
 RUN chmod 0755 /opt/hacker-cli-gym/gym \
     && mkdir -p /work /var/lib/hacker-cli-gym

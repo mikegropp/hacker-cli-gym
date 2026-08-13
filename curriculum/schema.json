@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mikegropp/hacker-cli-gym/curriculum/schema.json",
+  "title": "Hacker CLI Gym curriculum",
+  "type": "object",
+  "required": [
+    "catalog_version",
+    "track",
+    "platform",
+    "shell",
+    "command_count",
+    "stages_per_command",
+    "exercise_count",
+    "sections",
+    "lessons"
+  ],
+  "properties": {
+    "catalog_version": { "const": 2 },
+    "track": { "enum": ["linux", "powershell"] },
+    "platform": { "enum": ["linux", "windows"] },
+    "shell": { "enum": ["bash", "powershell"] },
+    "command_count": { "const": 100 },
+    "stages_per_command": { "const": 5 },
+    "exercise_count": { "const": 500 },
+    "sections": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "start", "end"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[0-9]{2}$" },
+          "title": { "type": "string", "minLength": 1 },
+          "start": { "type": "integer", "minimum": 1 },
+          "end": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "lessons": {
+      "type": "array",
+      "minItems": 500,
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/lesson" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "lesson": {
+      "type": "object",
+      "required": [
+        "id", "order", "command_order", "stage", "stage_name", "stage_kind",
+        "difficulty", "section", "command", "title", "focus", "example",
+        "breakdown", "task", "solution", "hints", "checks", "completion",
+        "mode", "concepts", "prerequisites", "introduced_inline",
+        "legacy_ids", "requires_success", "check_strength"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(linux|powershell)-[a-z0-9-]+$" },
+        "order": { "type": "integer", "minimum": 1, "maximum": 500 },
+        "command_order": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "stage": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "stage_name": { "type": "string", "minLength": 1 },
+        "stage_kind": { "enum": ["orientation", "options", "precision", "composition", "applied", "workflow", "transfer"] },
+        "difficulty": { "enum": ["foundation", "intermediate", "advanced"] },
+        "section": { "type": "string", "pattern": "^[0-9]{2}-" },
+        "command": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "focus": { "type": "string", "minLength": 1 },
+        "example": { "type": "string" },
+        "example_output": { "type": "string" },
+        "breakdown": { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 1 } },
+        "task": { "type": "string", "minLength": 1 },
+        "solution": { "type": "string", "minLength": 1 },
+        "hints": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 1 } },
+        "checks": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/check" } },
+        "adversarial_commands": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "completion": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["guided", "capstone"] },
+        "concepts": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "prerequisites": { "type": "array", "items": { "type": "string" } },
+        "introduced_inline": { "type": "array", "items": { "type": "string" } },
+        "legacy_ids": { "type": "array", "items": { "type": "string" } },
+        "requires_success": { "type": "boolean" },
+        "check_strength": { "enum": ["strict", "mixed", "permissive"] }
+      },
+      "additionalProperties": true
+    },
+    "check": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "enum": [
+            "stdout", "stdout-unordered-lines", "stdout-contains",
+            "stdout-not-contains", "stdout-nonempty", "stdout-regex",
+            "stdout-line-count", "stderr-contains", "output-contains",
+            "exit-code", "path-exists", "path-not-exists", "file-content",
+            "file-content-contains", "file-equals", "file-mode", "same-inode",
+            "same-owner", "same-group"
+          ]
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "expected": {},
+        "normalize": { "enum": ["trim", "exact", "whitespace"] },
+        "path": { "type": "string" },
+        "other_path": { "type": "string" },
+        "kind": { "enum": ["file", "directory", "any"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

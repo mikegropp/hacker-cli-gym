@@ -1,22 +1,339 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly launcher_version="2"
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly repo_dir
 readonly image_name="${HACKER_CLI_GYM_IMAGE:-hacker-cli-gym:local}"
+readonly progress_namespace="${HACKER_CLI_GYM_NAMESPACE:-hacker-cli-gym}"
+readonly progress_profile="${HACKER_CLI_GYM_PROFILE:-default}"
+readonly memory_limit="${HACKER_CLI_GYM_MEMORY:-768m}"
+readonly cpu_limit="${HACKER_CLI_GYM_CPUS:-2.0}"
+readonly process_limit="${HACKER_CLI_GYM_PIDS_LIMIT:-512}"
+readonly published_image="${HACKER_CLI_GYM_PUBLISHED_IMAGE:-ghcr.io/mikegropp/hacker-cli-gym:latest}"
 
-if ! command -v docker >/dev/null 2>&1; then
-  printf 'Docker is required. Install Docker, then run ./gym again.\n' >&2
+source_files=(
+  Dockerfile
+  container/gym
+  curriculum/linux.json
+  sample-files
+)
+
+fail() {
+  printf 'Error: %s\n' "$*" >&2
   exit 1
+}
+
+validate_name() {
+  local label=$1 value=$2
+  [[ $value =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] ||
+    fail "$label must contain only letters, numbers, dots, underscores, and hyphens."
+}
+
+validate_name "HACKER_CLI_GYM_NAMESPACE" "$progress_namespace"
+validate_name "HACKER_CLI_GYM_PROFILE" "$progress_profile"
+
+if [[ -n ${HACKER_CLI_GYM_VOLUME:-} ]]; then
+  validate_name "HACKER_CLI_GYM_VOLUME" "$HACKER_CLI_GYM_VOLUME"
+  readonly progress_volume="$HACKER_CLI_GYM_VOLUME"
+elif [[ $progress_profile == default ]]; then
+  readonly progress_volume="${progress_namespace}-progress"
+else
+  readonly progress_volume="${progress_namespace}-progress-${progress_profile}"
 fi
 
-if [[ ${1:-} == "build" ]]; then
-  exec docker build --tag "$image_name" "$repo_dir"
-fi
+hash_stream() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  else
+    return 1
+  fi
+}
 
-if ! docker image inspect "$image_name" >/dev/null 2>&1; then
-  printf 'Building %s for the first run...\n' "$image_name"
-  docker build --tag "$image_name" "$repo_dir"
-fi
+file_hash() {
+  local path=$1
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$path" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$path" | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+calculate_source_hash() {
+  local relative digest manifest='' path
+  for relative in "${source_files[@]}"; do
+    path=$repo_dir/$relative
+    [[ -e $path ]] || fail "Required source path is missing: $relative"
+    if [[ -d $path ]]; then
+      while IFS= read -r file; do
+        digest=$(file_hash "$repo_dir/$file") || fail "sha256sum or shasum is required to fingerprint the training image."
+        manifest+="$file $digest"$'\n'
+      done < <(cd "$repo_dir" && find "$relative" -type f -print | LC_ALL=C sort)
+    else
+      digest=$(file_hash "$path") || fail "sha256sum or shasum is required to fingerprint the training image."
+      manifest+="$relative $digest"$'\n'
+    fi
+  done
+  printf '%s' "$manifest" | hash_stream
+}
+
+project_version() {
+  if command -v git >/dev/null 2>&1 && git -C "$repo_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$repo_dir" describe --tags --always --dirty 2>/dev/null ||
+      git -C "$repo_dir" rev-parse --short HEAD
+  else
+    calculate_source_hash | cut -c 1-12
+  fi
+}
+
+docker_context() {
+  docker context show 2>/dev/null || printf 'unknown'
+}
+
+print_daemon_help() {
+  local context
+  context=$(docker_context)
+  printf 'Docker context: %s\n' "$context" >&2
+
+  if [[ -n ${DOCKER_HOST:-} ]]; then
+    printf 'DOCKER_HOST is set to %s; verify it or unset it before retrying.\n' "$DOCKER_HOST" >&2
+  fi
+
+  if command -v colima >/dev/null 2>&1 && [[ $context == colima* ]]; then
+    printf 'This context belongs to Colima. Start it with: colima start\n' >&2
+  elif [[ $(uname -s) == Darwin ]]; then
+    if [[ $context == desktop-linux* || $context == default* ]]; then
+      printf 'Start Docker Desktop, then wait until its engine reports that it is running.\n' >&2
+    fi
+    if command -v colima >/dev/null 2>&1; then
+      printf 'Or use Colima: colima start && docker context use colima\n' >&2
+    fi
+  elif [[ $(uname -s) == Linux ]]; then
+    if [[ $(uname -r) == *[Mm]icrosoft* ]]; then
+      printf 'Start Docker Desktop on Windows and enable integration for this WSL distribution.\n' >&2
+    else
+      printf 'Start the Docker service, commonly with: sudo systemctl start docker\n' >&2
+    fi
+  fi
+
+  printf 'To inspect or switch engines, run: docker context ls\n' >&2
+}
+
+require_docker_cli() {
+  command -v docker >/dev/null 2>&1 ||
+    fail "Docker is required. Install Docker Desktop or Docker Engine, then run ./gym again."
+}
+
+require_docker_daemon() {
+  require_docker_cli
+  if ! docker info >/dev/null 2>&1; then
+    printf 'Error: the Docker CLI is installed, but its engine is not reachable.\n' >&2
+    print_daemon_help
+    exit 1
+  fi
+}
+
+image_source_hash() {
+  docker image inspect \
+    --format '{{ index .Config.Labels "io.hacker-cli-gym.source-hash" }}' \
+    "$image_name" 2>/dev/null || true
+}
+
+build_image() {
+  local source_hash build_version
+  source_hash=$(calculate_source_hash)
+  build_version=$(project_version)
+
+  build_args=(
+    --tag "$image_name"
+    --build-arg "GYM_SOURCE_HASH=$source_hash"
+    --build-arg "GYM_BUILD_VERSION=$build_version"
+    "$repo_dir"
+  )
+
+  printf 'Building %s with source fingerprint %s...\n' "$image_name" "${source_hash:0:12}" >&2
+
+  if docker buildx version >/dev/null 2>&1 && docker buildx inspect >/dev/null 2>&1; then
+    docker buildx build --load "${build_args[@]}" >&2
+    return
+  fi
+
+  printf 'Docker Buildx is unavailable; using docker build. Install Buildx for faster builds and future Docker compatibility.\n' >&2
+  docker build "${build_args[@]}" >&2
+}
+
+pull_image() {
+  local source_hash pulled_hash
+  source_hash=$(calculate_source_hash)
+  printf 'Pulling prebuilt image %s...\n' "$published_image" >&2
+  docker pull "$published_image" >&2
+  pulled_hash=$(docker image inspect --format '{{ index .Config.Labels "io.hacker-cli-gym.source-hash" }}' "$published_image" 2>/dev/null || true)
+  [[ $pulled_hash == "$source_hash" ]] || fail "The published image does not match this checkout. Run ./gym build for an exact local image."
+  docker image tag "$published_image" "$image_name"
+  printf 'Installed %s as %s.\n' "$published_image" "$image_name" >&2
+}
+
+ensure_current_image() {
+  local current_hash built_hash
+  current_hash=$(calculate_source_hash)
+
+  if ! docker image inspect "$image_name" >/dev/null 2>&1; then
+    printf 'The training image is not installed yet.\n' >&2
+    build_image
+    return
+  fi
+
+  built_hash=$(image_source_hash)
+  if [[ $built_hash != "$current_hash" ]]; then
+    if [[ -n $built_hash && $built_hash != '<no value>' ]]; then
+      printf 'Local sources changed since this image was built (%s -> %s).\n' \
+        "${built_hash:0:12}" "${current_hash:0:12}" >&2
+    else
+      printf 'The installed image predates source tracking and must be refreshed.\n' >&2
+    fi
+    build_image
+  fi
+}
+
+show_version() {
+  local source_hash built_hash='unavailable'
+  source_hash=$(calculate_source_hash)
+  printf 'Hacker CLI Gym launcher %s\n' "$launcher_version"
+  printf 'Project version: %s\n' "$(project_version)"
+  printf 'Source fingerprint: %s\n' "$source_hash"
+  printf 'Runtime image: %s\n' "$image_name"
+  printf 'Published image: %s\n' "$published_image"
+  printf 'Progress profile: %s (volume %s)\n' "$progress_profile" "$progress_volume"
+
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    if docker image inspect "$image_name" >/dev/null 2>&1; then
+      built_hash=$(image_source_hash)
+      if [[ $built_hash == "$source_hash" ]]; then
+        printf 'Image status: current\n'
+      else
+        printf 'Image status: stale (it will rebuild on the next run)\n'
+      fi
+    else
+      printf 'Image status: not built\n'
+    fi
+  else
+    printf 'Image status: %s (Docker engine unavailable)\n' "$built_hash"
+  fi
+}
+
+doctor() {
+  local failures=0 source_hash built_hash context
+
+  printf 'Hacker CLI Gym doctor\n\n'
+  if command -v docker >/dev/null 2>&1; then
+    printf '[OK]   Docker CLI: %s\n' "$(command -v docker)"
+  else
+    printf '[FAIL] Docker CLI was not found. Install Docker Desktop or Docker Engine.\n'
+    return 1
+  fi
+
+  context=$(docker_context)
+  printf '[INFO] Docker context: %s\n' "$context"
+  if docker info >/dev/null 2>&1; then
+    printf '[OK]   Docker engine is reachable.\n'
+  else
+    printf '[FAIL] Docker engine is not reachable.\n'
+    print_daemon_help
+    failures=1
+  fi
+
+  if docker buildx version >/dev/null 2>&1; then
+    printf '[OK]   Docker Buildx is available.\n'
+  else
+    printf '[WARN] Docker Buildx is unavailable; builds will use a compatible fallback.\n'
+  fi
+
+  if source_hash=$(calculate_source_hash); then
+    printf '[OK]   Source fingerprint: %s\n' "$source_hash"
+  else
+    printf '[FAIL] Source fingerprint could not be calculated.\n'
+    failures=1
+    source_hash=''
+  fi
+
+  printf '[INFO] Runtime image: %s\n' "$image_name"
+  printf '[INFO] Published image: %s\n' "$published_image"
+  printf '[INFO] Progress profile: %s\n' "$progress_profile"
+  printf '[INFO] Progress volume: %s\n' "$progress_volume"
+
+  if ((failures == 0)); then
+    if docker image inspect "$image_name" >/dev/null 2>&1; then
+      built_hash=$(image_source_hash)
+      if [[ $built_hash == "$source_hash" ]]; then
+        printf '[OK]   Training image matches the checked-out sources.\n'
+      else
+        printf '[WARN] Training image is stale; ./gym will rebuild it automatically.\n'
+      fi
+    else
+      printf '[INFO] Training image is not built yet; ./gym will build it automatically.\n'
+    fi
+
+    if docker volume inspect "$progress_volume" >/dev/null 2>&1; then
+      printf '[OK]   Progress volume exists.\n'
+    else
+      printf '[INFO] Progress volume will be created on the first run.\n'
+    fi
+  fi
+
+  ((failures == 0))
+}
+
+case ${1:-} in
+  help|-h|--help)
+    cat <<'HELP'
+Hacker CLI Gym — disposable, outcome-graded Linux command-line practice
+
+Usage:
+  ./gym                 start the next unfinished rep
+  ./gym daily [COUNT]   run a short review/new-work queue
+  ./gym run TARGET      run by number, command, or lesson ID
+  ./gym list [FILTERS]  list reps
+  ./gym status          show progress and mastery
+  ./gym samples         copy fresh open-ended files into /work/samples
+  ./gym progress ...    export, import, or reset progress
+  ./gym doctor          diagnose Docker, image, and storage
+  ./gym build           force a local image rebuild
+  ./gym pull            install a matching published image
+  ./gym version         show source and image versions
+
+Docker is required for commands that enter the Linux gym, but not for this help.
+HELP
+    exit 0
+    ;;
+  version|--version|-V)
+    show_version
+    exit 0
+    ;;
+  doctor)
+    if doctor; then
+      exit 0
+    else
+      exit 1
+    fi
+    ;;
+  build)
+    require_docker_daemon
+    build_image
+    exit 0
+    ;;
+  pull)
+    require_docker_daemon
+    pull_image
+    exit 0
+    ;;
+esac
+
+require_docker_daemon
+ensure_current_image
 
 tty_args=(--interactive)
 if [[ -t 0 && -t 1 ]]; then
@@ -28,10 +345,59 @@ if ((${#container_args[@]} == 0)); then
   container_args=(start)
 fi
 
-exec docker run \
+docker_run_args=(
   --rm \
-  "${tty_args[@]}" \
+  --init \
   --network none \
-  --volume hacker-cli-gym-progress:/var/lib/hacker-cli-gym \
+  --read-only \
+  --tmpfs "/work:rw,exec,nosuid,nodev,size=256m,mode=1777" \
+  --tmpfs "/tmp:rw,exec,nosuid,nodev,size=64m,mode=1777" \
+  --tmpfs "/run:rw,nosuid,nodev,size=32m,mode=0755" \
+  --tmpfs "/var/tmp:rw,exec,nosuid,nodev,size=32m,mode=1777" \
+  --security-opt no-new-privileges:true \
+  --cap-drop ALL \
+  --cap-add AUDIT_WRITE \
+  --cap-add CHOWN \
+  --cap-add DAC_OVERRIDE \
+  --cap-add FOWNER \
+  --cap-add FSETID \
+  --cap-add NET_RAW \
+  --cap-add SETGID \
+  --cap-add SETUID \
+  --cap-add SYS_CHROOT \
+  --env "HACKER_CLI_GYM_LOCAL_DATE=$(date +%F)" \
+  --pids-limit "$process_limit" \
+  --memory "$memory_limit" \
+  --cpus "$cpu_limit" \
+  --volume "$progress_volume:/var/lib/hacker-cli-gym"
+)
+
+# Translate explicit host backup paths instead of pretending they exist inside
+# the disposable container. Dash keeps the ordinary stdin/stdout pipeline API.
+if ((${#container_args[@]} == 3)) && [[ ${container_args[0]} == progress && ${container_args[1]} == export && ${container_args[2]} != - ]]; then
+  destination=${container_args[2]}
+  destination_dir=$(dirname -- "$destination")
+  [[ -d $destination_dir ]] || fail "Export directory does not exist: $destination_dir"
+  [[ ! -d $destination ]] || fail "Export destination is a directory: $destination"
+  temporary_export=$(mktemp "$destination_dir/.hacker-cli-gym-progress.XXXXXX")
+  if docker run --interactive "${docker_run_args[@]}" "$image_name" progress export - >"$temporary_export"; then
+    chmod 600 "$temporary_export"
+    mv -- "$temporary_export" "$destination"
+    printf 'Progress exported to %s\n' "$destination" >&2
+    exit 0
+  fi
+  rm -f -- "$temporary_export"
+  exit 1
+fi
+
+if ((${#container_args[@]} == 3)) && [[ ${container_args[0]} == progress && ${container_args[1]} == import && ${container_args[2]} != - ]]; then
+  source_path=${container_args[2]}
+  [[ -f $source_path ]] || fail "Progress import file not found: $source_path"
+  exec docker run --interactive "${docker_run_args[@]}" "$image_name" progress import - <"$source_path"
+fi
+
+exec docker run \
+  "${tty_args[@]}" \
+  "${docker_run_args[@]}" \
   "$image_name" \
   "${container_args[@]}"

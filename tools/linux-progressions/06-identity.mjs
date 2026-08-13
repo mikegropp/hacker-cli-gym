@@ -57,8 +57,9 @@ export default {
       title: 'Apply ownership recursively', focus: 'chown -R updates descendants throughout a precisely named directory tree.',
       example: 'chown -R nobody:nogroup shared', example_output: '',
       task: 'Recursively assign nobody:nogroup to every file under shared.',
-      solution: 'chown -R nobody:nogroup shared', files: { 'shared/a.txt': '', 'shared/nested/b.txt': '' },
-      checks: [owner('shared/a.txt', 'shared/nested/b.txt'), group('shared/a.txt', 'shared/nested/b.txt'), ...out('', 'Ownership changes completed.', 'exact')],
+      solution: 'chown -R nobody:nogroup shared', files: { 'shared/a.txt': '', 'shared/nested/b.txt': '', '.expected-owner': '' },
+      setup: ['chown nobody:nogroup .expected-owner'],
+      checks: [owner('shared/a.txt', '.expected-owner'), group('shared/a.txt', '.expected-owner'), owner('shared/nested/b.txt', '.expected-owner'), group('shared/nested/b.txt', '.expected-owner')],
     },
     {
       title: 'Restrict changes to an expected owner', focus: 'chown --from changes an item only when its current owner and group match an expected state.',
@@ -85,15 +86,15 @@ export default {
       title: 'Apply group ownership recursively', focus: 'chgrp -R updates every descendant under one carefully scoped directory.',
       example: 'chgrp -R nogroup shared', example_output: '',
       task: 'Recursively assign group nogroup to files below shared.',
-      solution: 'chgrp -R nogroup shared', files: { 'shared/one.txt': '', 'shared/nested/two.txt': '' }, checks: [
-        { type: 'same-group', description: 'Both shared files received one group.', path: 'shared/one.txt', other_path: 'shared/nested/two.txt' },
+      solution: 'chgrp -R nogroup shared', files: { 'shared/one.txt': '', 'shared/nested/two.txt': '', '.expected-group': '' }, setup: ['chgrp nogroup .expected-group'], checks: [
+        group('shared/one.txt', '.expected-group'), group('shared/nested/two.txt', '.expected-group'),
       ],
     },
     {
       title: 'Mirror a reference group across artifacts', focus: 'chgrp --reference copies the group from a reviewed reference to one or more targets.',
       example: 'chgrp --reference=template one two', example_output: '',
-      task: 'Set template group to nogroup, then copy that group to release.tar, checksums.txt, and manifest.json.',
-      solution: 'chgrp nogroup template && chgrp --reference=template release.tar checksums.txt manifest.json', files: { template: '', 'release.tar': '', 'checksums.txt': '', 'manifest.json': '' },
+      task: 'Copy template\'s group to release.tar, checksums.txt, and manifest.json.',
+      solution: 'chgrp --reference=template release.tar checksums.txt manifest.json', files: { template: '', 'release.tar': '', 'checksums.txt': '', 'manifest.json': '' }, setup: ['chgrp nogroup template'],
       checks: ['release.tar', 'checksums.txt', 'manifest.json'].map(path => group(path, 'template')),
     },
   ],

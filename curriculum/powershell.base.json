@@ -148,8 +148,8 @@
         "The relative path is resolved below the current directory.",
         "A successful location change normally emits no output."
       ],
-      "task": "Change into the existing reports directory.",
-      "solution": "Set-Location reports",
+      "task": "Change into the existing reports directory and print its leaf name.",
+      "solution": "Set-Location reports; Split-Path (Get-Location).Path -Leaf",
       "hints": [
         "Pass the directory name as the path."
       ],
@@ -162,9 +162,10 @@
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "PowerShell entered the reports directory successfully.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The active location is the reports directory.",
+          "expected": "reports",
+          "normalize": "trim"
         }
       ],
       "completion": "Set-Location changes only this disposable PowerShell process."
@@ -2143,8 +2144,8 @@
         "$PID selects only the current PowerShell process.",
         "-WhatIf prevents the termination."
       ],
-      "task": "Preview stopping the current PowerShell process without actually stopping it.",
-      "solution": "Stop-Process -Id $PID -WhatIf",
+      "task": "Preview stopping the current PowerShell process without actually stopping it, then print previewed.",
+      "solution": "Stop-Process -Id $PID -WhatIf; 'previewed'",
       "hints": [
         "The rep requires the -WhatIf safety switch."
       ],
@@ -2154,9 +2155,10 @@
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The protected preview completed successfully.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The protected preview was confirmed.",
+          "expected": "previewed",
+          "normalize": "trim"
         }
       ],
       "completion": "Use -WhatIf to review destructive process selections before acting."
@@ -2174,8 +2176,8 @@
         "-Milliseconds accepts short intervals.",
         "A successful pause emits no output."
       ],
-      "task": "Pause this disposable process for 10 milliseconds.",
-      "solution": "Start-Sleep -Milliseconds 10",
+      "task": "Pause this disposable process for 10 milliseconds, then print resumed.",
+      "solution": "Start-Sleep -Milliseconds 10; 'resumed'",
       "hints": [
         "Use the -Milliseconds parameter."
       ],
@@ -2185,9 +2187,10 @@
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The short pause completed successfully.",
-          "expected": 0
+          "type": "stdout",
+          "description": "Execution resumed after the short pause.",
+          "expected": "resumed",
+          "normalize": "trim"
         }
       ],
       "completion": "Start-Sleep is useful for polling intervals and controlled retry timing."
@@ -2225,97 +2228,105 @@
       "completion": "Get-Service is read-only and is the safe first step before any service decision."
     },
     {
-      "id": "powershell-start-service",
+      "id": "powershell-start-job",
       "order": 65,
-      "section": "07-processes-and-services",
-      "command": "Start-Service",
-      "title": "Preview starting a service",
-      "about": "Start-Service changes service state, so this rep permits only a -WhatIf preview against the EventLog service.",
-      "example": "Start-Service EventLog -WhatIf",
-      "example_output": "What if: Performing the operation Start-Service...",
+      "section": "07-processes-jobs-and-modules",
+      "command": "Start-Job",
+      "title": "Start work in a background job",
+      "about": "Start-Job runs a script block in a background PowerShell process and returns a job object that can be inspected, awaited, and cleaned up.",
+      "example": "$job=Start-Job { 'ready' }; $job | Wait-Job",
+      "example_output": "State : Completed",
       "breakdown": [
-        "The service is selected by its stable name.",
-        "-WhatIf prevents any state change."
+        "The script block contains the background work.",
+        "The returned job object tracks state and output."
       ],
-      "task": "Preview starting EventLog without changing the service.",
-      "solution": "Start-Service EventLog -WhatIf",
+      "task": "Start a job that returns ready, wait for it, print state=Completed, and remove the job.",
+      "solution": "$job=Start-Job { 'ready' }; $job | Wait-Job | Out-Null; \"state=$($job.State)\"; Remove-Job $job",
       "hints": [
-        "Include the required -WhatIf switch."
+        "Capture the Start-Job result so the same job can be waited on and removed."
       ],
       "files": {},
       "allowed": [
-        "Start-Service"
+        "Start-Job",
+        "Wait-Job",
+        "Remove-Job"
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The protected start preview completed.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The background job reached Completed state.",
+          "expected": "state=Completed"
         }
       ],
-      "completion": "Preview service changes first, especially when dependencies and production workloads are involved."
+      "completion": "Keep the returned job object, retrieve its output, and remove finished jobs so a long session stays tidy."
     },
     {
-      "id": "powershell-stop-service",
+      "id": "powershell-get-job",
       "order": 66,
-      "section": "07-processes-and-services",
-      "command": "Stop-Service",
-      "title": "Preview stopping a service",
-      "about": "Stop-Service changes service state, so this rep requires -WhatIf and cannot stop the Windows Event Log service.",
-      "example": "Stop-Service EventLog -WhatIf",
-      "example_output": "What if: Performing the operation Stop-Service...",
+      "section": "07-processes-jobs-and-modules",
+      "command": "Get-Job",
+      "title": "Inspect a background job",
+      "about": "Get-Job returns job objects from the current session, including their identifiers, names, state, and output availability.",
+      "example": "Get-Job -Name report",
+      "example_output": "State : Completed",
       "breakdown": [
-        "EventLog names the target service.",
-        "-WhatIf guarantees a preview only."
+        "-Name selects a tracked job without relying on its numeric identifier.",
+        "The job remains session-scoped until it is removed."
       ],
-      "task": "Preview stopping EventLog without changing it.",
-      "solution": "Stop-Service EventLog -WhatIf",
+      "task": "Start a job named gym-check, wait for it, use Get-Job to print gym-check=Completed, and remove it.",
+      "solution": "$job=Start-Job -Name gym-check { 2 + 2 }; $job | Wait-Job | Out-Null; $found=Get-Job -Name gym-check; \"$($found.Name)=$($found.State)\"; Remove-Job $job",
       "hints": [
-        "Use the mandatory -WhatIf switch."
+        "Assign a stable name when starting the job, then query that name after waiting."
       ],
       "files": {},
       "allowed": [
-        "Stop-Service"
+        "Start-Job",
+        "Wait-Job",
+        "Get-Job",
+        "Remove-Job"
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The protected stop preview completed.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The named job was found in Completed state.",
+          "expected": "gym-check=Completed"
         }
       ],
-      "completion": "Service stops can affect many consumers; inspect dependencies and preview the selection."
+      "completion": "Get-Job discovers jobs owned by the current PowerShell session; names make concurrent work easier to identify."
     },
     {
-      "id": "powershell-restart-service",
+      "id": "powershell-receive-job",
       "order": 67,
-      "section": "07-processes-and-services",
-      "command": "Restart-Service",
-      "title": "Preview restarting a service",
-      "about": "Restart-Service combines a stop and start, so this rep permits only a -WhatIf preview and makes no host change.",
-      "example": "Restart-Service EventLog -WhatIf",
-      "example_output": "What if: Performing the operation Restart-Service...",
+      "section": "07-processes-jobs-and-modules",
+      "command": "Receive-Job",
+      "title": "Collect background-job output",
+      "about": "Receive-Job transfers available output from a job into the current pipeline after the work has completed.",
+      "example": "$job | Wait-Job | Receive-Job",
+      "example_output": "ready",
       "breakdown": [
-        "EventLog is the selected service.",
-        "-WhatIf prevents the restart."
+        "Wait-Job avoids racing the background work.",
+        "Receive-Job emits the job's output into the current pipeline."
       ],
-      "task": "Preview restarting EventLog without changing it.",
-      "solution": "Restart-Service EventLog -WhatIf",
+      "task": "Run a job that returns background-ready, wait for it, receive that output, and remove the job.",
+      "solution": "$job=Start-Job { 'background-ready' }; $job | Wait-Job | Receive-Job; Remove-Job $job",
       "hints": [
-        "The safety boundary requires -WhatIf."
+        "Pipe the captured job through Wait-Job and then Receive-Job before cleanup."
       ],
       "files": {},
       "allowed": [
-        "Restart-Service"
+        "Start-Job",
+        "Wait-Job",
+        "Receive-Job",
+        "Remove-Job"
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The protected restart preview completed.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The job's output was received.",
+          "expected": "background-ready"
         }
       ],
-      "completion": "A restart is an outage, however brief; preview and understand the impact first."
+      "completion": "Receiving output and removing the job are separate operations; use -Keep when the same output must be read again."
     },
     {
       "id": "powershell-get-module",
@@ -3029,8 +3040,8 @@
         "Get-Acl supplies the source security descriptor.",
         "Set-Acl applies it only to the local target file."
       ],
-      "task": "Apply reference.txt's access-control descriptor to target.txt.",
-      "solution": "Get-Acl reference.txt | Set-Acl target.txt",
+      "task": "Apply reference.txt's access-control descriptor to target.txt, then print acl-copied.",
+      "solution": "Get-Acl reference.txt | Set-Acl target.txt; 'acl-copied'",
       "hints": [
         "Pipe the reference ACL directly into Set-Acl for the target."
       ],
@@ -3044,9 +3055,10 @@
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "The local ACL copy completed successfully.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The local ACL copy was confirmed.",
+          "expected": "acl-copied",
+          "normalize": "trim"
         },
         {
           "type": "file-content",
@@ -3126,19 +3138,20 @@
       "command": "Get-LocalGroupMember",
       "title": "Inspect local group membership",
       "about": "Get-LocalGroupMember lists users and groups contained in a local Windows security group.",
-      "example": "Get-LocalGroupMember Administrators",
-      "example_output": "ObjectClass Name                      PrincipalSource\n----------- ----                      ---------------\nUser        HOST\\Administrator        Local",
+      "example": "Get-LocalGroup -SID 'S-1-5-32-544' | Get-LocalGroupMember",
+      "example_output": "ObjectClass Name                PrincipalSource\n----------- ----                ---------------\nUser        HOST\\LocalAdmin     Local",
       "breakdown": [
-        "Administrators is a stable built-in group.",
+        "S-1-5-32-544 identifies the built-in administrators group on every language of Windows.",
         "ObjectClass distinguishes users from nested groups."
       ],
-      "task": "Print the object class of the first Administrators group member.",
-      "solution": "Get-LocalGroupMember Administrators | Select-Object -First 1 -ExpandProperty ObjectClass",
+      "task": "Resolve S-1-5-32-544, then print the object class of its first group member.",
+      "solution": "Get-LocalGroup -SID 'S-1-5-32-544' | Get-LocalGroupMember | Select-Object -First 1 -ExpandProperty ObjectClass",
       "hints": [
-        "Select the first member and expand ObjectClass."
+        "Resolve the group by its invariant SID, then select the first member and expand ObjectClass."
       ],
       "files": {},
       "allowed": [
+        "Get-LocalGroup",
         "Get-LocalGroupMember",
         "Select-Object"
       ],
@@ -3288,8 +3301,8 @@
         "-Version Latest enables all current strict checks.",
         "The setting affects only this disposable scope."
       ],
-      "task": "Enable the latest strict-mode rules for this PowerShell process.",
-      "solution": "Set-StrictMode -Version Latest",
+      "task": "Enable the latest strict-mode rules for this PowerShell session, then print strict-mode-enabled.",
+      "solution": "Set-StrictMode -Version Latest; 'strict-mode-enabled'",
       "hints": [
         "Use -Version Latest."
       ],
@@ -3299,9 +3312,10 @@
       ],
       "checks": [
         {
-          "type": "exit-code",
-          "description": "Strict mode was enabled successfully.",
-          "expected": 0
+          "type": "stdout",
+          "description": "The strict-mode step was confirmed.",
+          "expected": "strict-mode-enabled",
+          "normalize": "trim"
         }
       ],
       "completion": "Strict mode catches many mistakes early and belongs near the start of reusable scripts."
@@ -3371,4 +3385,3 @@
     }
   ]
 }
-

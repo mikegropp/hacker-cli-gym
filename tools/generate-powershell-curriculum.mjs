@@ -12,6 +12,12 @@ import runtime from './powershell-progressions/07-runtime.mjs';
 import system from './powershell-progressions/08-system.mjs';
 import network from './powershell-progressions/09-network.mjs';
 import administration from './powershell-progressions/10-administration.mjs';
+import {
+  buildBreakdown,
+  buildHints,
+  enrichLesson,
+  validateLessonMetadata,
+} from './curriculum-metadata.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -69,6 +75,7 @@ for (const filename of progressionFiles) {
 if (base.lessons.length !== 100) throw new Error(`Expected 100 PowerShell seed lessons; found ${base.lessons.length}.`);
 
 const commands = base.lessons.map(lesson => lesson.command);
+const orderedCommands = commands;
 if (new Set(commands).size !== 100) throw new Error('PowerShell seed commands must be unique.');
 
 const unknown = Object.keys(progressions).filter(command => !commands.includes(command));
@@ -83,7 +90,7 @@ const sections = Array.from({ length: 10 }, (_, index) => ({
     'Structured data',
     'Variables and output',
     'Paths, archives, and security',
-    'Processes, services, and modules',
+    'Processes, jobs, and modules',
     'Time and system inventory',
     'Networking and policy',
     'Windows administration',
@@ -113,7 +120,7 @@ for (const [commandIndex, seed] of base.lessons.entries()) {
     const stage = stageIndex + 1;
     const order = commandIndex * 5 + stage;
     const id = stage === 1 ? seed.id : `${seed.id}-${stage}`;
-    lessons.push({
+    let lesson = {
       id,
       order,
       command_order: commandIndex + 1,
@@ -126,16 +133,21 @@ for (const [commandIndex, seed] of base.lessons.entries()) {
       focus: source.focus ?? source.about,
       example: source.example,
       example_output: source.example_output ?? '',
-      breakdown: source.breakdown ?? [],
+      breakdown: buildBreakdown(source, seed.command),
       task: source.task,
       solution: source.solution,
-      hints: source.hints ?? [`Start with ${seed.command}; use Get-Help ${seed.command} -Full if you need the parameter details.`],
+      hints: buildHints(source, seed.command, 'powershell'),
       directories: source.directories ?? [],
       files: source.files ?? {},
       setup: source.setup ?? [],
       checks: source.checks,
-      completion: source.completion ?? `${seed.command} stage ${stage} complete.`,
-    });
+      completion: source.completion ?? `You used ${seed.command} to complete “${source.title}” and verified the requested outcome.`,
+    };
+    lesson = enrichLesson(lesson, orderedCommands, 'powershell');
+    if (lesson.mode === 'capstone') lesson.stage_name = 'Blind section capstone';
+    else if (lesson.stage === 4 && lesson.stage_kind === 'applied') lesson.stage_name = 'Applied use';
+    else if (lesson.stage === 5 && lesson.stage_kind === 'transfer') lesson.stage_name = 'Transfer challenge';
+    lessons.push(lesson);
   }
 }
 
@@ -152,10 +164,7 @@ const catalog = {
   lessons,
 };
 
-const ids = lessons.map(item => item.id);
-const tasks = lessons.map(item => item.task);
-if (new Set(ids).size !== 500) throw new Error('PowerShell lesson IDs must be unique.');
-if (new Set(tasks).size !== 500) throw new Error('PowerShell lesson tasks must be unique.');
+validateLessonMetadata(lessons, 500);
 for (const item of lessons) {
   for (const field of ['title', 'focus', 'example', 'task', 'solution']) {
     if (/[\x00-\x1f]/.test(item[field] ?? '')) {

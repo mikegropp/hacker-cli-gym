@@ -12,9 +12,9 @@ export default {
     },
     {
       title: 'Inspect a process you started', focus: 'A saved $! PID lets ps inspect one exact background process without broad matching.',
-      example: "sleep 30 & pid=$!; ps -o pid=,comm= -p \"$pid\"; kill \"$pid\"", example_output: '123 sleep',
+      example: "sleep 30 & pid=$!; until [ \"$(ps -o comm= -p \"$pid\")\" = sleep ]; do :; done; ps -o pid=,comm= -p \"$pid\"; kill \"$pid\"", example_output: '123 sleep',
       task: 'Start sleep 30 in the background, print its PID and command with ps without headers, then stop it.',
-      solution: 'sleep 30 & pid=$!; ps -o pid=,comm= -p "$pid"; kill "$pid"', checks: [{ type: 'stdout-contains', description: 'The sleep command was identified.', expected: 'sleep' }],
+      solution: 'sleep 30 & pid=$!; until [ "$(ps -o comm= -p "$pid")" = sleep ]; do :; done; ps -o pid=,comm= -p "$pid"; kill "$pid"', checks: [{ type: 'stdout-contains', description: 'The sleep command was identified.', expected: 'sleep' }],
     },
     {
       title: 'Sort processes by memory use', focus: 'ps --sort orders a custom process table by a selected field such as resident memory.',
@@ -26,7 +26,7 @@ export default {
       title: 'Create a filtered process inventory', focus: 'A custom ps table can feed awk so a workflow retains only rows matching a command name.',
       example: "ps -eo pid=,comm= | awk '$2==\"sleep\"'", example_output: '123 sleep',
       task: 'Start a background sleep, use ps and awk to print only PID=sleep for that PID, then stop it.',
-      solution: "sleep 30 & pid=$!; ps -o pid=,comm= -p \"$pid\" | awk '{print $1 \"=\" $2}'; kill \"$pid\"", checks: [{ type: 'stdout-regex', description: 'The process inventory row was formatted.', expected: '[0-9]+=sleep' }],
+      solution: "sleep 30 & pid=$!; until [ \"$(ps -o comm= -p \"$pid\")\" = sleep ]; do :; done; ps -o pid=,comm= -p \"$pid\" | awk '{print $1 \"=\" $2}'; kill \"$pid\"", checks: [{ type: 'stdout-regex', description: 'The process inventory row was formatted.', expected: '[0-9]+=sleep' }],
     },
   ],
   top: [
@@ -188,12 +188,12 @@ export default {
     {
       title: 'Use a fractional duration', focus: 'GNU sleep accepts decimal seconds for short, controlled pauses.',
       example: 'sleep 0.25', example_output: '',
-      task: 'Pause for 0.05 seconds.', solution: 'sleep 0.05', checks: [{ type: 'exit-code', description: 'The fractional pause completed.', expected: 0 }],
+      task: 'Pause for 0.05 seconds, then print resumed.', solution: 'sleep 0.05 && echo resumed', checks: out('resumed'),
     },
     {
       title: 'Use an explicit unit suffix', focus: 'Suffixes such as s, m, h, and d document the intended time unit.',
       example: 'sleep 0.2s', example_output: '',
-      task: 'Sleep for 0.05s using the seconds suffix.', solution: 'sleep 0.05s', checks: [{ type: 'exit-code', description: 'The suffixed pause completed.', expected: 0 }],
+      task: 'Sleep for 0.05s using the seconds suffix, then print resumed.', solution: 'sleep 0.05s && echo resumed', checks: out('resumed'),
     },
     {
       title: 'Pause between retry attempts', focus: 'sleep inside a loop spaces repeated attempts without duplicating control logic.',

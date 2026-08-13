@@ -1,21 +1,27 @@
 # Hacker CLI Gym
 
-The Duolingo-style command-line gym: 1,000 short, practical exercises in real
-shells.
+[![tests](https://github.com/mikegropp/hacker-cli-gym/actions/workflows/tests.yml/badge.svg)](https://github.com/mikegropp/hacker-cli-gym/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- **Linux:** 100 essential commands × 5 stages = 500 Bash exercises in a
+Learn the command line by doing: 1,000 short exercises in real Bash and
+PowerShell environments, with outcome-based grading and useful feedback.
+
+![Hacker CLI Gym terminal demo](docs/demo.svg)
+
+- **Linux:** 100 common commands × 5 stages = 500 Bash exercises in a
   disposable Debian container.
 - **Windows:** 100 PowerShell commands × 5 stages = 500 exercises in native
   Windows PowerShell.
-
-Every rep explains one useful idea, shows an example, gives you a real fixture,
-and asks for an outcome. The checker grades output and state—not the exact
-command you typed. Pipelines, variables, loops, alternative commands, and
-multi-step solutions are welcome.
+- **Open-ended solutions:** use any command, pipeline, variable, loop, function,
+  or multi-step approach that produces the requested result.
+- **Real practice:** manipulate actual files, directories, processes, structured
+  data, archives, permissions, and local networking fixtures.
+- **Daily learning:** mix a new rep with due reviews, track mastery, and revisit
+  skills on a spaced schedule.
 
 ## Start the Linux gym
 
-Requirements: Git and Docker.
+Requirements: Git and a running Docker engine.
 
 ```console
 git clone https://github.com/mikegropp/hacker-cli-gym.git
@@ -23,8 +29,22 @@ cd hacker-cli-gym
 ./gym
 ```
 
-The first run builds the image. Progress is stored in a Docker volume; each rep
-recreates `/work` inside a disposable container. You can also use Compose:
+The launcher builds the training image on first use and automatically rebuilds
+it when the Dockerfile, runner, Linux curriculum, or bundled sample files change. Progress lives in a
+named Docker volume, while each rep recreates `/work` inside a disposable
+container.
+
+After a matching release is published, `./gym pull` can install the prebuilt
+multi-architecture image from GitHub Container Registry. The launcher verifies
+its source fingerprint against the checkout and directs you to `./gym build` if
+they differ.
+
+If startup fails, run `./gym doctor`. It checks the Docker CLI, active engine,
+context, Buildx support, source fingerprint, image freshness, and progress
+volume. On macOS it gives specific guidance when Docker Desktop or Colima is
+installed but stopped.
+
+You can also use Compose:
 
 ```console
 docker compose run --build --rm gym
@@ -32,7 +52,7 @@ docker compose run --build --rm gym
 
 ## Start the PowerShell gym
 
-Requirements: Windows and Windows PowerShell 5.1.
+Requirements: Windows, Git, and Windows PowerShell 5.1.
 
 ```powershell
 git clone https://github.com/mikegropp/hacker-cli-gym.git
@@ -40,145 +60,233 @@ Set-Location hacker-cli-gym
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 start
 ```
 
-The PowerShell runner creates disposable lesson files and progress under
-`$env:LOCALAPPDATA\HackerCliGym`. Its authored exercises do not require
-administrator access and avoid changing real services, accounts, tasks, disks,
-or network configuration.
+The runner creates lesson files and progress beneath
+`$env:LOCALAPPDATA\HackerCliGym`. Authored exercises avoid administrator access
+and do not change real services, accounts, tasks, disks, or network settings.
 
-PowerShell itself is unrestricted: a command you choose can affect Windows.
-Use a non-administrator shell, and use a VM if you want the whole operating
-system to be disposable.
+Each lesson gets a dedicated persistent runspace, so variables, functions,
+aliases, and location changes survive between submissions until the lesson is
+reset. Parser-aware input accepts multiline pipelines, functions, loops, and
+script blocks. `:shell` enters an ungraded exploration mode that shares the same
+session; type `:return` to resume the mission.
 
-## Five meaningful stages per command
+The PowerShell prompt is intentionally real and unrestricted. Commands you
+choose can affect Windows, so use a non-administrator shell and a VM when you
+want the entire operating system to be disposable.
 
-Each command follows the same learning rhythm:
+Only the gym workspace is cleared between reps. Cleanup treats junctions and
+symbolic links as links and never follows them into outside directories.
 
-| Stage | Purpose |
+## How learning works
+
+Each command follows a practical progression:
+
+| Stage | Goal |
 |---:|---|
-| 1 | Orientation: use the command for its most common job |
-| 2 | Useful options: add a practical parameter or flag |
-| 3 | Focused results: select, filter, or inspect more precisely |
-| 4 | Pipeline composition: combine the command with normal shell tools |
-| 5 | Practical workflow: solve a small, realistic multi-step task |
+| 1 | Use the command for its normal everyday job |
+| 2 | Apply a useful option or parameter |
+| 3 | Select, filter, or inspect more precisely |
+| 4 | Compose it with pipelines and other shell features |
+| 5 | Complete a realistic workflow or blind transfer challenge |
 
-The stages are not made harder with arbitrary syntax. They progress from a
-normal first use toward the way the command appears in everyday work.
+Lessons name required prior concepts and explicitly introduce small inline
+concepts when needed. Examples are annotated, hints progress from the underlying
+idea to command structure to a near-complete approach, and the final reveal
+shows one reference solution. The checker grades observable output and state,
+not a character-for-character command.
 
-## A rep in practice
+Failed checks explain what differed—for example, an unexpected line, a missing
+fragment, a wrong line count, or a file-state mismatch—without immediately
+giving away the solution.
 
-```text
-PowerShell rep 026/500 | command 006/100 | stage 1/5: Orientation
+### Daily practice and mastery
 
-Get-ChildItem — List files
+Both tracks build a short daily queue (three reps by default) that prioritizes
+skills introduced with help, due reviews, and then new work. Once everything
+has been introduced, they select the earliest upcoming review. The optional
+count can be 1–10.
 
-MISSION
-Print only the names of the two files in the practice directory.
+A solution completed independently is **mastered**. Using a hint or the
+reference solution marks it **introduced**, so it returns sooner for an
+independent attempt. Reviews update mastery, review interval, due date, and
+lapses. XP rewards independent recall more than assisted completion.
 
-gym[26] ~> Get-ChildItem -File | ForEach-Object Name
-notes.txt
-status.txt
+### Blind capstones
 
-CHECK
-[PASS] Only the requested names were printed.
-REP COMPLETE
-```
-
-The reference might use `Select-Object -ExpandProperty Name`; the alternative
-above still passes because it produces the requested result.
+Selected Stage 5 reps hide the worked example and command recipe. They provide
+an objective, a freshly generated challenge token, and the same outcome-based
+grader. The token changes whenever the fixture is reset, so memorizing a fixed
+answer cannot complete the capstone.
 
 ## Gym controls
 
-Controls begin with a colon, leaving ordinary Bash and PowerShell input alone:
+Controls begin with a colon, leaving normal Bash and PowerShell input alone:
 
 ```text
-:hint       reveal the next hint, then the reference approach
-:example    repeat the example
+:hint       reveal the next progressive hint, then the reference approach
+:example    repeat the annotated example (hidden during blind review)
 :files      list the current practice files
-:reset      restore the rep fixture
-:check      grade the last output and current state again
+:samples    copy fresh open-ended files into ./samples (Linux)
+:shell      enter persistent, ungraded command-line exploration
+:reset      rebuild the starting fixture
+:check      grade the most recent output and current state again
 :lesson     repeat the mission
-:status     show progress, XP, and level
+:status     show progress, mastery, reviews, XP, and level
 :next       move to the next rep
 :previous   move to the previous rep
 :go TARGET  jump by number, command, or lesson ID
+:help       show the in-session controls
 :quit       leave the gym
 ```
 
-The Linux track also provides `:shell` for an unwrapped interactive Bash
-subshell.
+On Linux, each graded submission runs in a fresh Bash process, so combine
+stateful steps such as `cd`, variable assignments, and later commands in one
+submission (for example with a newline or `&&`). `:shell` opens a persistent,
+unwrapped interactive Bash subshell for free exploration. In PowerShell,
+`:shell` opens ungraded exploration in the persistent lesson runspace; use
+`:return` to resume grading.
 
 ## Launcher commands
 
 Linux:
 
 ```console
-./gym                         # next unfinished rep
-./gym daily                   # one daily rep: the next unfinished exercise
-./gym run 151                 # run by global exercise number
-./gym run cut                 # first unfinished cut stage
-./gym run linux-cut-5         # run by exact lesson ID
-./gym list
+./gym                              # next unfinished rep
+./gym daily                        # 3-rep due-review/new-work queue
+./gym review                       # blind review of the daily selection
+./gym review linux-cut-5           # blind review of a specific rep
+./gym run 151                      # run by global exercise number
+./gym run cut                      # first unfinished cut stage
+./gym run linux-cut-5              # run by exact lesson ID
+./gym list                         # all Linux reps
+./gym list --section text
+./gym list --command cut
+./gym list --unfinished
+./gym list --due
 ./gym status
-./gym test                    # execute all 500 references
-./gym build
+./gym progress export progress.json
+./gym progress import progress.json
+./gym progress export - > progress.json
+./gym progress import - < progress.json
+./gym progress reset --yes          # resets after preserving a backup
+./gym test                         # validate and run all references
+./gym build                        # force a fresh image build
+./gym pull                         # install the matching prebuilt GHCR image
+./gym doctor                       # diagnose Docker and image state
+./gym version                      # project, image, and profile details
 ```
 
 PowerShell:
 
 ```powershell
 .\gym.ps1 start
-.\gym.ps1 daily              # one daily rep: the next unfinished exercise
+.\gym.ps1 daily                     # 3-rep review/new queue
+.\gym.ps1 daily 5                   # choose a 1–10 rep session
+.\gym.ps1 review                    # blind review of the daily selection
+.\gym.ps1 review Get-ChildItem      # blind review of a specific rep
 .\gym.ps1 run 26
 .\gym.ps1 run Get-ChildItem
 .\gym.ps1 run powershell-get-childitem-5
 .\gym.ps1 list
+.\gym.ps1 list archive             # search IDs, commands, and titles
+.\gym.ps1 list -Section pipeline
+.\gym.ps1 list -Command Get-ChildItem
+.\gym.ps1 list -Unfinished
+.\gym.ps1 list -Due
 .\gym.ps1 status
-.\gym.ps1 test               # execute all 500 references
+.\gym.ps1 progress export backup.json
+.\gym.ps1 progress import backup.json
+.\gym.ps1 progress reset CONFIRM
+.\gym.ps1 doctor
+.\gym.ps1 version
+.\gym.ps1 test
 ```
 
-## Linux command path
+PowerShell honors `NO_COLOR=1` and optionally clears before each lesson when
+`HACKER_CLI_GYM_CLEAR=1`.
 
-| Exercises | Commands | Section |
-|---:|---:|---|
-| 001–050 | 001–010 | Navigation and help |
-| 051–100 | 011–020 | Files and directories |
-| 101–150 | 021–030 | Reading content |
-| 151–200 | 031–040 | Text processing |
-| 201–250 | 041–050 | Composition and comparison |
-| 251–300 | 051–060 | Identity and permissions |
-| 301–350 | 061–070 | Processes and execution |
-| 351–400 | 071–080 | System and storage |
-| 401–450 | 081–090 | Archives and integrity |
-| 451–500 | 091–100 | Networking and services |
+## Progress, profiles, and container limits
 
-The full command lists are in [COMMANDS.md](COMMANDS.md).
+Progress uses a versioned JSON record, atomic writes, and automatic recovery
+backups. Export it before moving machines or replacing a Docker volume:
 
-## PowerShell command path
+```console
+./gym progress export - > hacker-cli-gym-progress.json
+./gym progress import - < hacker-cli-gym-progress.json
+```
 
-| Exercises | Commands | Section |
-|---:|---:|---|
-| 001–050 | 001–010 | Discovery and navigation |
-| 051–100 | 011–020 | Files and content |
-| 101–150 | 021–030 | Pipeline and text |
-| 151–200 | 031–040 | Structured data |
-| 201–250 | 041–050 | Variables and output |
-| 251–300 | 051–060 | Paths, archives, and security |
-| 301–350 | 061–070 | Processes, services, and modules |
-| 351–400 | 071–080 | Time and system inventory |
-| 401–450 | 081–090 | Networking and policy |
-| 451–500 | 091–100 | Windows administration |
+An import preserves the previous record. A corrupt record is also retained for
+recovery instead of being silently overwritten. To intentionally start fresh,
+run `./gym progress reset --yes`; the old record is backed up first.
 
-## Linux isolation and networking
+Linux profiles keep separate progress volumes without duplicating the repo:
 
-The Linux container runs as root so permissions, ownership, processes, SSH,
-and system utilities behave naturally. The host launcher mounts no repository,
-home directory, Docker socket, or personal files into the container.
+```console
+HACKER_CLI_GYM_PROFILE=class-a ./gym
+HACKER_CLI_GYM_PROFILE=personal ./gym status
+```
 
-Networking is disabled. Networking exercises use loopback-only HTTP and SSH
-fixtures, so they remain deterministic and do not contact real targets.
+Container resource limits are configurable when the defaults are not suitable:
 
-If a VM clock is far behind or ahead and APT reports that a Debian `Release`
-file is not valid yet, synchronize the VM and rebuild:
+```console
+HACKER_CLI_GYM_MEMORY=1g HACKER_CLI_GYM_CPUS=3 HACKER_CLI_GYM_PIDS_LIMIT=768 ./gym
+```
+
+The defaults are 768 MiB of memory, 2 CPUs, and 512 processes. Advanced users
+can also set `HACKER_CLI_GYM_IMAGE`, `HACKER_CLI_GYM_NAMESPACE`, or
+`HACKER_CLI_GYM_VOLUME`; mirrors can override
+`HACKER_CLI_GYM_PUBLISHED_IMAGE`.
+
+## Command paths
+
+The Linux path spans navigation, files, text processing, permissions,
+processes, system inspection, archives, structured data, automation, and local
+networking. It includes foundational workflow commands such as `source`,
+`find`, and `jq`.
+
+The PowerShell path spans discovery, providers, files, the object pipeline,
+structured data, jobs, modules, system inventory, networking, policy, and safe
+administration. Its job-control progression includes `Start-Job`, `Get-Job`,
+and `Receive-Job`.
+
+See [COMMANDS.md](COMMANDS.md) for both complete 100-command lists.
+
+Every rep generates only the fixture it needs. The `sample-files/` directory
+also provides synthetic logs, CSV/TSV and JSON data, configurations, scripts,
+host lists, and project trees for open-ended practice.
+
+Run `./gym samples` to copy a fresh set into `/work/samples` and open a raw
+Bash session, or use `:samples` during a Linux rep. Because `/work` is
+disposable, rerun the command whenever you want a clean copy.
+
+## Architecture
+
+- `./gym` is the Linux host launcher. It verifies Docker, fingerprints the
+  runtime sources, builds through Buildx or a compatible fallback, and starts a
+  restricted container with only its progress volume attached.
+- `container/gym` is the Bash learning controller inside that image. Learner
+  commands execute in the real shell against a freshly seeded `/work`.
+- `gym.ps1` is the native Windows controller. Learner commands execute as real
+  PowerShell against a workspace under the user's local application data.
+- `curriculum/linux.json` and `curriculum/powershell.json` are generated lesson
+  catalogs shared by the runners, validators, and CI.
+
+## Portability and isolation
+
+The Linux lab uses Debian and GNU utilities so every reference solution is
+deterministic. Most featured commands and concepts transfer directly to other
+GNU/Linux distributions; package locations, available utilities, and flags can
+differ on BusyBox, BSD-derived systems, or minimal installations.
+
+The container runs as root so ownership, permissions, processes, SSH, and
+system utilities behave naturally. It mounts no repository, home directory,
+Docker socket, or personal files. Its root filesystem is read-only; `/work` and
+runtime temp paths are throwaway memory filesystems, and only the Linux
+capabilities required by the curriculum are enabled. Networking is disabled;
+HTTP and SSH lessons use loopback-only fixtures.
+
+If a VM clock is incorrect and APT rejects a Debian `Release` file, synchronize
+the clock and rebuild:
 
 ```console
 sudo timedatectl set-ntp true
@@ -186,11 +294,16 @@ timedatectl status
 ./gym build
 ```
 
-## Practice data
+## Curriculum quality
 
-Every rep creates only the fixture it needs. The repository also includes
-synthetic logs, CSV/TSV data, configurations, host lists, and a small project
-tree in `sample-files/` for self-directed practice.
+Both generated catalogs conform to [curriculum/schema.json](curriculum/schema.json).
+The validator enforces stable dimensions and IDs, three progressive hints,
+annotated examples, prerequisite metadata, supported checks, specific feedback,
+and strong assertions for missions that require exact output. CI regenerates
+both catalogs, checks for drift, parses both runners, builds the Linux image,
+and executes all 500 reference approaches on each platform.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) to add or improve lessons.
 
 ## License
 

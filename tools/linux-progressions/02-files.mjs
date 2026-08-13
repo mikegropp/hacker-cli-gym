@@ -84,8 +84,8 @@ export default {
     {
       title: 'Refresh only existing files', focus: 'touch -c updates named files when present but does not accidentally create missing ones.',
       example: 'touch -c existing.log absent.log', example_output: '',
-      task: 'Refresh app.log and reference missing.log with -c, without creating missing.log.',
-      solution: 'touch -c app.log missing.log', files: { 'app.log': 'existing\n' }, checks: [exists('app.log', 'file'), missing('missing.log')],
+      task: 'Refresh app.log and reference missing.log with -c, without creating missing.log, then print refreshed.',
+      solution: 'touch -c app.log missing.log && echo refreshed', files: { 'app.log': 'existing\n' }, checks: [exists('app.log', 'file'), missing('missing.log'), ...out('refreshed')],
     },
   ],
   cp: [
@@ -130,9 +130,9 @@ export default {
     {
       title: 'Avoid overwriting an existing destination', focus: 'mv -n keeps an existing destination untouched and leaves the source available for review.',
       example: 'mv -n candidate.txt final.txt', example_output: '',
-      task: 'Try to move candidate.conf over existing app.conf without overwriting it.',
-      solution: 'mv -n candidate.conf app.conf', files: { 'candidate.conf': 'candidate\n', 'app.conf': 'production\n' },
-      checks: [content('app.conf', 'production\n'), content('candidate.conf', 'candidate\n')],
+      task: 'Try to move candidate.conf over existing app.conf without overwriting it, then print preserved.',
+      solution: 'mv -n candidate.conf app.conf && echo preserved', files: { 'candidate.conf': 'candidate\n', 'app.conf': 'production\n' },
+      checks: [content('app.conf', 'production\n'), content('candidate.conf', 'candidate\n'), ...out('preserved')],
     },
     {
       title: 'Back up a replaced destination', focus: 'mv --backup=numbered preserves the prior destination while installing the new file.',

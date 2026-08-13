@@ -7,14 +7,18 @@ readonly CATALOG="$GYM_ROOT/curriculum/linux.json"
 readonly WORKSPACE=/work
 readonly PROGRESS_DIR=/var/lib/hacker-cli-gym
 readonly PROGRESS_FILE="$PROGRESS_DIR/progress.json"
+readonly PROGRESS_SCHEMA_VERSION=3
 readonly SESSION_DIR="/tmp/hacker-cli-gym-$$"
 readonly GYM_PROCESS_ID="$BASHPID"
 readonly LAST_OUT="$SESSION_DIR/last.stdout"
 readonly LAST_ERR="$SESSION_DIR/last.stderr"
 readonly PARSE_ERR="$SESSION_DIR/parse.stderr"
-readonly TOTAL_LESSONS="$(jq -r '.lessons | length' "$CATALOG")"
-readonly COMMAND_COUNT="$(jq -r '.command_count' "$CATALOG")"
-readonly STAGES_PER_COMMAND="$(jq -r '.stages_per_command' "$CATALOG")"
+readonly HISTFILE=/dev/null
+export HISTFILE
+TOTAL_LESSONS="$(jq -r '.lessons | length' "$CATALOG")"
+COMMAND_COUNT="$(jq -r '.command_count' "$CATALOG")"
+STAGES_PER_COMMAND="$(jq -r '.stages_per_command' "$CATALOG")"
+readonly TOTAL_LESSONS COMMAND_COUNT STAGES_PER_COMMAND
 
 mkdir -p "$WORKSPACE" "$PROGRESS_DIR" "$SESSION_DIR"
 : >"$LAST_OUT"
@@ -22,8 +26,14 @@ mkdir -p "$WORKSPACE" "$PROGRESS_DIR" "$SESSION_DIR"
 
 cleanup_session() {
   if [[ $BASHPID == "$GYM_PROCESS_ID" ]]; then
+    cleanup_fixture_processes
     rm -rf -- "$SESSION_DIR"
   fi
+}
+
+cleanup_fixture_processes() {
+  pkill -f '[b]usybox httpd -p 127\.0\.0\.1:8080 -h site' 2>/dev/null || true
+  pkill -f '[s]shd.*-f /work/sshd_config' 2>/dev/null || true
 }
 
 trap cleanup_session EXIT
@@ -56,18 +66,183 @@ LESSON_COMMAND_ORDER=0
 LESSON_STAGE=0
 LESSON_STAGE_NAME=''
 LAST_RC=0
-ALL_CHECKS_PASSED=0
 COMMAND_INPUT=''
+FIXTURE_NONCE=''
+SESSION_REVIEW_MODE=0
+SESSION_DAILY_KIND=''
+TARGET_COMMAND_OBSERVED=0
+SESSION_DAILY_ACTIVE=0
+SESSION_DAILY_GOAL=0
+SESSION_DAILY_DONE=0
+SESSION_DAILY_SEEN='[]'
 
 die() {
   printf '%sError:%s %s\n' "$RED" "$RESET" "$*" >&2
   exit 1
 }
 
-progress_init() {
-  if [[ ! -s $PROGRESS_FILE ]] || ! jq -e '.schema_version == 2 and (.completed | type == "object") and (.activity | type == "array")' "$PROGRESS_FILE" >/dev/null 2>&1; then
-    printf '%s\n' '{"schema_version":2,"completed":{},"activity":[]}' >"$PROGRESS_FILE"
+current_day() {
+  if [[ ${HACKER_CLI_GYM_LOCAL_DATE:-} =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    printf '%s' "$HACKER_CLI_GYM_LOCAL_DATE"
+  else
+    date +%F
   fi
+}
+
+new_progress_document() {
+  printf '%s\n' '{"schema_version":3,"track":"linux","completed":{},"activity":[],"settings":{"daily_goal":3}}'
+}
+
+progress_document_valid() {
+  local file=$1
+  [[ -s $file ]] && jq -e '
+    (type == "object")
+    and ((.track // "linux") == "linux")
+    and (((.schema_version // 1) | type) == "number")
+    and ((.schema_version // 1) >= 1 and (.schema_version // 1) <= 3)
+    and ((.completed // {}) | type == "object")
+    and (all((.completed // {})[];
+      type == "object"
+      and all([.points?, .attempts?, .hints_used?, .mastery_level?, .interval_days?, .review_count?, .lapses?][]; . == null or (type == "number" and floor == . and . >= 0))
+      and all([.assisted?, .ever_assisted?, .target_command_observed?][]; . == null or type == "boolean")
+      and ((.status? // "mastered") | IN("introduced", "mastered"))
+      and ((.review_due? // "2000-01-01") | type == "string" and (try (strptime("%Y-%m-%d") | true) catch false))
+    ))
+    and ((.activity // []) | type == "array")
+    and (all((.activity // [])[]; (.date | type) == "string" and (try (.date | strptime("%Y-%m-%d") | true) catch false)))
+    and ((.settings // {}) | type == "object")
+    and (((.settings.daily_goal // 3) | type) == "number")
+    and (((.settings.daily_goal // 3) | floor) == (.settings.daily_goal // 3))
+    and ((.settings.daily_goal // 3) >= 1 and (.settings.daily_goal // 3) <= 10)
+  ' "$file" >/dev/null 2>&1
+}
+
+progress_backup_name() {
+  local reason=${1:-backup}
+  printf '%s/progress.%s.%s.json' "$PROGRESS_DIR" "$reason" "$(date -u +%Y%m%dT%H%M%SZ)-$$"
+}
+
+progress_write_atomic() {
+  local source=$1 temporary
+  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || return 1
+  command cp -- "$source" "$temporary" || { rm -f -- "$temporary"; return 1; }
+  chmod 600 "$temporary" || { rm -f -- "$temporary"; return 1; }
+  # GNU mv -T atomically replaces regular files, FIFOs, and symlinks without
+  # following them. A real directory must be removed immediately beforehand.
+  if [[ -d $PROGRESS_FILE && ! -L $PROGRESS_FILE ]]; then
+    rm -rf --one-file-system -- "$PROGRESS_FILE" || { rm -f -- "$temporary"; return 1; }
+  fi
+  mv -T -- "$temporary" "$PROGRESS_FILE" || { rm -f -- "$temporary"; return 1; }
+}
+
+progress_init() {
+  local backup temporary today
+  today=$(current_day)
+
+  if [[ ! -e $PROGRESS_FILE && ! -L $PROGRESS_FILE ]]; then
+    temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress temporary file."
+    new_progress_document >"$temporary" || { rm -f -- "$temporary"; die "Cannot prepare initial progress."; }
+    progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot initialize progress."; }
+    rm -f -- "$temporary"
+    return
+  fi
+
+  if [[ -L $PROGRESS_FILE || ! -f $PROGRESS_FILE ]]; then
+    backup=$(progress_backup_name corrupt-special)
+    mv -T -- "$PROGRESS_FILE" "$backup" || die "Cannot preserve unsafe progress entry."
+    temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress recovery file."
+    new_progress_document >"$temporary" || { rm -f -- "$temporary"; die "Cannot prepare recovered progress."; }
+    progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot recover an unsafe progress entry."; }
+    rm -f -- "$temporary"
+    printf '%sWarning:%s unsafe progress entry was preserved at %s and a clean record was created.\n' \
+      "$YELLOW" "$RESET" "$backup" >&2
+    return
+  fi
+
+  if [[ ! -s $PROGRESS_FILE ]]; then
+    backup=$(progress_backup_name corrupt-empty)
+    command cp -- "$PROGRESS_FILE" "$backup" || die "Cannot preserve empty progress."
+    temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress recovery file."
+    new_progress_document >"$temporary" || { rm -f -- "$temporary"; die "Cannot prepare recovered progress."; }
+    progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot recover empty progress."; }
+    rm -f -- "$temporary"
+    printf '%sWarning:%s empty progress was preserved at %s and a clean record was created.\n' \
+      "$YELLOW" "$RESET" "$backup" >&2
+    return
+  fi
+
+  if ! progress_document_valid "$PROGRESS_FILE"; then
+    backup=$(progress_backup_name corrupt)
+    command cp -- "$PROGRESS_FILE" "$backup" || die "Cannot preserve corrupt progress."
+    temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress recovery file."
+    new_progress_document >"$temporary" || { rm -f -- "$temporary"; die "Cannot prepare recovered progress."; }
+    progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot recover corrupt progress."; }
+    rm -f -- "$temporary"
+    printf '%sWarning:%s invalid progress was preserved at %s and a clean record was created.\n' \
+      "$YELLOW" "$RESET" "$backup" >&2
+    return
+  fi
+
+  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress migration file."
+  if ! jq --arg today "$today" --argjson schema "$PROGRESS_SCHEMA_VERSION" '
+    .schema_version = $schema
+    | .track = "linux"
+    | .completed = (.completed // {})
+    | .activity = (.activity // [])
+    | .settings = ((.settings // {}) + {daily_goal: (.settings.daily_goal // 3)})
+    | .completed |= with_entries(
+        .value = (.value // {})
+        | .value as $old
+        | .value = ($old + {
+            status: ($old.status // (if (($old.hints_used // 0) > 0) then "introduced" else "mastered" end)),
+            assisted: ($old.assisted // (($old.hints_used // 0) > 0)),
+            ever_assisted: ($old.ever_assisted // (($old.hints_used // 0) > 0)),
+            mastery_level: ($old.mastery_level // (if (($old.hints_used // 0) > 0) then 1 else 2 end)),
+            interval_days: ($old.interval_days // (if (($old.hints_used // 0) > 0) then 1 else 3 end)),
+            review_due: ($old.review_due // $today),
+            review_count: ($old.review_count // 0),
+            lapses: ($old.lapses // 0)
+          })
+      )
+  ' "$PROGRESS_FILE" >"$temporary"; then
+    rm -f -- "$temporary"
+    backup=$(progress_backup_name corrupt)
+    command cp -- "$PROGRESS_FILE" "$backup" || die "Cannot preserve failed progress migration."
+    temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress recovery file."
+    new_progress_document >"$temporary" || { rm -f -- "$temporary"; die "Cannot prepare recovered progress."; }
+    progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot recover failed progress migration."; }
+    rm -f -- "$temporary"
+    printf '%sWarning:%s progress migration failed; the original is at %s.\n' "$YELLOW" "$RESET" "$backup" >&2
+    return
+  fi
+  if ! jq --arg today "$today" --slurpfile catalog "$CATALOG" '
+    reduce ($catalog[0].lessons[] | select(((.legacy_ids // []) | length) > 0)) as $lesson
+      (.;
+        ($lesson.legacy_ids // []) as $legacy_ids
+        | (if .completed[$lesson.id] != null then .
+           else
+             ([$legacy_ids[] as $legacy
+               | select(.completed[$legacy] != null)
+               | .completed[$legacy]] | first) as $legacy_record
+             | if $legacy_record == null then .
+               else .completed[$lesson.id] = ($legacy_record + {
+                 status: "introduced",
+                 assisted: true,
+                 ever_assisted: true,
+                 mastery_level: 1,
+                 interval_days: 1,
+                 review_due: $today,
+                 migrated_from_legacy: true
+               }) end
+           end)
+        | reduce $legacy_ids[] as $legacy (. ; del(.completed[$legacy])))
+  ' "$temporary" >"$temporary.legacy"; then
+    rm -f -- "$temporary" "$temporary.legacy"
+    die "Cannot migrate legacy lesson progress."
+  fi
+  mv -- "$temporary.legacy" "$temporary" || { rm -f -- "$temporary" "$temporary.legacy"; die "Cannot finalize legacy progress migration."; }
+  progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot save migrated progress."; }
+  rm -f -- "$temporary"
 }
 
 rank_for_level() {
@@ -86,7 +261,9 @@ rank_for_level() {
 }
 
 total_xp() {
-  jq '[.completed[].points // 0] | add // 0' "$PROGRESS_FILE"
+  jq --slurpfile catalog "$CATALOG" \
+    '[$catalog[0].lessons[].id as $id | .completed[$id].points // empty] | add // 0' \
+    "$PROGRESS_FILE"
 }
 
 streak_days() {
@@ -94,7 +271,7 @@ streak_days() {
   dates=$(jq -r '.activity[]?.date // empty' "$PROGRESS_FILE" | sort -u)
   [[ -n $dates ]] || { printf '0'; return; }
 
-  cursor=$(date -u +%F)
+  cursor=$(current_day)
   if ! grep -Fqx "$cursor" <<<"$dates"; then
     cursor=$(date -u --date="$cursor - 1 day" +%F)
   fi
@@ -119,33 +296,82 @@ score_rep() {
 
 mark_complete() {
   local attempts=$1 hints=$2 score previous best gained now today temporary
+  local was_completed assisted prior_interval interval due status mastery lapses reviews
   score=$(score_rep "$LESSON_DIFFICULTY" "$attempts" "$hints")
   previous=$(jq -r --arg id "$LESSON_ID" '.completed[$id].points // 0' "$PROGRESS_FILE")
+  was_completed=$(jq -r --arg id "$LESSON_ID" '.completed[$id] != null' "$PROGRESS_FILE")
   best=$score
   ((previous > best)) && best=$previous
   gained=$((best - previous))
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  today=${now%%T*}
-  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX")
+  today=$(current_day)
+  assisted=false
+  ((hints > 0)) && assisted=true
+  prior_interval=$(jq -r --arg id "$LESSON_ID" '.completed[$id].interval_days // 1' "$PROGRESS_FILE")
+  lapses=$(jq -r --arg id "$LESSON_ID" '.completed[$id].lapses // 0' "$PROGRESS_FILE")
+  reviews=$(jq -r --arg id "$LESSON_ID" '.completed[$id].review_count // 0' "$PROGRESS_FILE")
 
-  jq \
+  if [[ $assisted == true ]]; then
+    status=introduced
+    mastery=1
+    interval=1
+  else
+    status=mastered
+    mastery=2
+    if [[ $was_completed == true ]]; then
+      interval=$((prior_interval * 2))
+      ((interval > 30)) && interval=30
+    else
+      interval=3
+    fi
+    if ((attempts > 1)); then
+      ((lapses += 1))
+      interval=1
+    fi
+  fi
+  [[ $was_completed == true ]] && ((reviews += 1))
+  due=$(date -u --date="$today + $interval days" +%F)
+  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress save file."
+
+  if ! jq \
     --arg id "$LESSON_ID" \
     --arg now "$now" \
     --arg today "$today" \
+    --arg due "$due" \
+    --arg status "$status" \
     --argjson attempts "$attempts" \
     --argjson hints "$hints" \
     --argjson points "$best" \
+    --argjson assisted "$assisted" \
+    --argjson interval "$interval" \
+    --argjson mastery "$mastery" \
+    --argjson lapses "$lapses" \
+    --argjson reviews "$reviews" \
+    --argjson target_observed "$TARGET_COMMAND_OBSERVED" \
     '.completed[$id] = {
       completed_at: (.completed[$id].completed_at // $now),
       last_completed_at: $now,
       attempts: $attempts,
       hints_used: $hints,
-      points: $points
+      points: $points,
+      status: $status,
+      assisted: $assisted,
+      ever_assisted: ((.completed[$id].ever_assisted // false) or $assisted),
+      mastery_level: $mastery,
+      interval_days: $interval,
+      review_due: $due,
+      review_count: $reviews,
+      lapses: $lapses,
+      target_command_observed: ((.completed[$id].target_command_observed // false) or ($target_observed == 1))
     }
-    | .activity += [{lesson_id: $id, date: $today, completed_at: $now}]
+    | .activity += [{lesson_id: $id, date: $today, completed_at: $now, assisted: $assisted, status: $status}]
     | .activity = .activity[-1000:]' \
-    "$PROGRESS_FILE" >"$temporary"
-  mv -- "$temporary" "$PROGRESS_FILE"
+    "$PROGRESS_FILE" >"$temporary"; then
+    rm -f -- "$temporary"
+    die "Cannot update progress for $LESSON_ID."
+  fi
+  progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot save progress."; }
+  rm -f -- "$temporary"
   printf '%s' "$gained"
 }
 
@@ -175,6 +401,50 @@ next_incomplete_id() {
   done < <(jq -r '.lessons | sort_by(.order)[] | .id' "$CATALOG")
 }
 
+daily_rep() {
+  local today
+  today=$(current_day)
+  jq -r --arg today "$today" --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" --argjson seen "$SESSION_DAILY_SEEN" '
+    ([.lessons[]
+      | select((.id as $id | $seen | index($id)) == null)
+      | select($completed[.id] != null and (($completed[.id].review_due // $today) <= $today))
+      | {id, order, due: ($completed[.id].review_due // $today), status: ($completed[.id].status // "mastered")}]
+      | sort_by((if .status == "introduced" then 0 else 1 end), .due, .order)
+      | first
+      | if . == null then empty else "\(.id)\treview\tReview due \(.due)" end) //
+    ([.lessons[] | select((.id as $id | $seen | index($id)) == null) | select($completed[.id] == null)]
+      | sort_by(.order)
+      | first
+      | if . == null then empty else "\(.id)\tnew\tNew rep" end) //
+    ([.lessons[] | select((.id as $id | $seen | index($id)) == null) | select($completed[.id] != null)
+      | {id, order, due: ($completed[.id].review_due // $today)}]
+      | sort_by(.due, .order)
+      | first
+      | if . == null then empty else "\(.id)\tearly-review\tNext review due \(.due)" end)
+  ' "$CATALOG"
+}
+
+note_daily_completion() {
+  ((SESSION_DAILY_ACTIVE)) || return 0
+  ((SESSION_DAILY_DONE += 1))
+  printf '%sDaily progress:%s %d/%d reps complete.\n' "$CYAN$BOLD" "$RESET" "$SESSION_DAILY_DONE" "$SESSION_DAILY_GOAL"
+}
+
+remember_daily_rep() {
+  local id=$1
+  SESSION_DAILY_SEEN=$(jq -c --arg id "$id" 'if index($id) == null then . + [$id] else . end' <<<"$SESSION_DAILY_SEEN")
+}
+
+leave_daily_mode() {
+  if ((SESSION_DAILY_ACTIVE)); then
+    printf '%sLeaving daily queue:%s navigation continues in regular practice mode (%d/%d daily reps completed).\n' \
+      "$DIM" "$RESET" "$SESSION_DAILY_DONE" "$SESSION_DAILY_GOAL"
+  fi
+  SESSION_DAILY_ACTIVE=0
+  SESSION_DAILY_KIND=''
+  SESSION_REVIEW_MODE=0
+}
+
 next_order_id() {
   jq -r --argjson order "$LESSON_ORDER" '.lessons[] | select(.order == ($order + 1)) | .id' "$CATALOG"
 }
@@ -197,18 +467,42 @@ lesson_id_for_selector() {
   ' "$CATALOG"
 }
 
+suggest_selectors() {
+  local target=${1,,}
+  [[ -n $target ]] || return 0
+  jq -r '.lessons[].command' "$CATALOG" | sort -u | awk -v target="$target" '
+    function min3(a,b,c) { m=(a<b?a:b); return m<c?m:c }
+    function distance(a,b, i,j,cost) {
+      delete previous; delete current
+      for (j=0; j<=length(b); j++) previous[j]=j
+      for (i=1; i<=length(a); i++) {
+        current[0]=i
+        for (j=1; j<=length(b); j++) {
+          cost=(substr(a,i,1)==substr(b,j,1)?0:1)
+          current[j]=min3(current[j-1]+1,previous[j]+1,previous[j-1]+cost)
+        }
+        for (j=0; j<=length(b); j++) previous[j]=current[j]
+      }
+      return previous[length(b)]
+    }
+    { print distance(target,tolower($0)), $0 }
+  ' | sort -n -k1,1 -k2,2 | head -3 | awk '{print "  :go " $2}'
+}
+
 safe_relative_path() {
   local path=$1
   [[ -n $path && $path != /* && $path != '..' && $path != ../* && $path != */../* && $path != */.. ]]
 }
 
 seed_workspace() {
+  cleanup_fixture_processes
   [[ $(realpath -m "$WORKSPACE") == /work ]] || die "Refusing to reset an unexpected workspace path."
   cd "$WORKSPACE" || die "Cannot enter the practice workspace."
   umask 022
   find "$WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 
   local relative encoded destination target setup_command
+  FIXTURE_NONCE=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
   while IFS= read -r relative; do
     [[ -n $relative ]] || continue
     safe_relative_path "$relative" || die "Unsafe curriculum directory: $relative"
@@ -220,13 +514,14 @@ seed_workspace() {
     safe_relative_path "$relative" || die "Unsafe curriculum file: $relative"
     destination="$WORKSPACE/$relative"
     mkdir -p -- "$(dirname -- "$destination")"
-    printf '%s' "$encoded" | base64 --decode >"$destination"
+    printf '%s' "$encoded" | base64 --decode | sed "s/{{nonce}}/$FIXTURE_NONCE/g" >"$destination"
   done < <(jq -r '.files | to_entries[] | [.key, (.value | @base64)] | @tsv' <<<"$LESSON_JSON")
 
   while IFS=$'\t' read -r relative encoded; do
     [[ -n $relative ]] || continue
     safe_relative_path "$relative" || die "Unsafe curriculum symlink: $relative"
     target=$(printf '%s' "$encoded" | base64 --decode)
+    target=${target//\{\{nonce\}\}/$FIXTURE_NONCE}
     safe_relative_path "$target" || die "Unsafe curriculum symlink target: $target"
     destination="$WORKSPACE/$relative"
     mkdir -p -- "$(dirname -- "$destination")"
@@ -236,6 +531,7 @@ seed_workspace() {
   while IFS= read -r encoded; do
     [[ -n $encoded ]] || continue
     setup_command=$(printf '%s' "$encoded" | base64 --decode)
+    setup_command=${setup_command//\{\{nonce\}\}/$FIXTURE_NONCE}
     eval "$setup_command" || die "Cannot prepare curriculum fixture for $LESSON_ID"
   done < <(jq -r '.setup[]? | @base64' <<<"$LESSON_JSON")
 
@@ -256,16 +552,36 @@ show_example() {
   fi
 }
 
+lesson_is_blind() {
+  [[ $(jq -r '.mode // "guided"' <<<"$LESSON_JSON") == capstone || $SESSION_REVIEW_MODE == 1 ]]
+}
+
 show_lesson() {
+  local display_command=$LESSON_COMMAND
+  lesson_is_blind && display_command='BLIND TRANSFER'
   printf '\n%s========================================================================%s\n' "$CYAN" "$RESET"
   printf '%sREP %03d/%03d · COMMAND %03d/%03d · STAGE %d/%d · %s%s\n' \
     "$BOLD" "$LESSON_ORDER" "$TOTAL_LESSONS" "$LESSON_COMMAND_ORDER" "$COMMAND_COUNT" \
-    "$LESSON_STAGE" "$STAGES_PER_COMMAND" "$LESSON_COMMAND" "$RESET"
+    "$LESSON_STAGE" "$STAGES_PER_COMMAND" "$display_command" "$RESET"
   printf '%s%s · %s%s\n' "$DIM" "$LESSON_STAGE_NAME" "$LESSON_DIFFICULTY" "$RESET"
   printf '%s%s%s\n' "$BOLD" "$(jq -r '.title' <<<"$LESSON_JSON")" "$RESET"
   printf '%s========================================================================%s\n' "$CYAN" "$RESET"
-  jq -r '.about' <<<"$LESSON_JSON"
-  show_example
+  if ! lesson_is_blind; then
+    jq -r '.focus // .about' <<<"$LESSON_JSON"
+  fi
+  if lesson_is_blind; then
+    printf '\n%sWorked examples are hidden for this blind review. Solve from the objective; hints remain available.%s\n' "$DIM" "$RESET"
+  else
+    show_example
+  fi
+  jq -r '
+    if ((.prerequisites // []) | length) > 0 then
+      "\nPrerequisites: " + ((.prerequisites // []) | join(", "))
+    else empty end,
+    if ((.introduced_inline // []) | length) > 0 then
+      "Introduced here: " + ((.introduced_inline // []) | join(", "))
+    else empty end
+  ' <<<"$LESSON_JSON"
   printf '\n%sYOUR MISSION%s\n%s\n' "$BOLD" "$RESET" "$(jq -r '.task' <<<"$LESSON_JSON")"
   printf '%sWorkspace: %s · any Bash command or pipeline is allowed%s\n' "$DIM" "$WORKSPACE" "$RESET"
   printf '%sUse :hint, :files, :reset, :shell, :check, :next, :previous, :go, or :help.%s\n\n' "$DIM" "$RESET"
@@ -297,6 +613,7 @@ normalize_value() {
       printf '%s' "${value//$'\r'/}"
       ;;
     *)
+      # shellcheck disable=SC2016 # Dollar signs below are sed address/anchor syntax.
       printf '%s' "$value" | sed -e 's/\r$//' -e '1s/^[[:space:]]*//' -e '${s/[[:space:]]*$//;}'
       ;;
   esac
@@ -304,7 +621,8 @@ normalize_value() {
 
 render_expected() {
   local value=$1
-  printf '%s' "${value//\{\{workspace\}\}/$WORKSPACE}"
+  value=${value//\{\{workspace\}\}/$WORKSPACE}
+  printf '%s' "${value//\{\{nonce\}\}/$FIXTURE_NONCE}"
 }
 
 workspace_path() {
@@ -313,9 +631,129 @@ workspace_path() {
   printf '%s/%s' "$WORKSPACE" "$relative"
 }
 
+is_output_check_type() {
+  case "$1" in
+    stdout|stdout-unordered-lines|stdout-contains|stdout-not-contains|output-contains|stderr-contains|stdout-nonempty|stdout-regex|stdout-line-count) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+output_status_matches() {
+  local expected_exit requires_success
+  requires_success=$(jq -r '.requires_success // true' <<<"$LESSON_JSON")
+  [[ $requires_success == false ]] && return 0
+  expected_exit=$(jq -r '[.checks[]? | select(.type == "exit-code") | .expected] | first // empty' <<<"$LESSON_JSON")
+  if [[ -n $expected_exit ]]; then
+    ((LAST_RC == expected_exit))
+  else
+    ((LAST_RC == 0))
+  fi
+}
+
+line_count() {
+  local value=$1
+  [[ -n $value ]] || { printf '0'; return; }
+  awk 'NF { count += 1 } END { print count + 0 }' <<<"$value"
+}
+
+preview_value() {
+  local value=$1 limit=140
+  value=${value//$'\r'/}
+  if ((${#value} > limit)); then
+    value=${value:0:limit}'…'
+  fi
+  printf '%q' "$value"
+}
+
+show_check_diagnostic() {
+  local check=$1 type=$2 expected actual path other_path kind actual_kind
+  if is_output_check_type "$type" && ! output_status_matches; then
+    expected=$(jq -r '[.checks[]? | select(.type == "exit-code") | .expected] | first // 0' <<<"$LESSON_JSON")
+    printf '       %sexit status:%s got %d; expected %s before output can count\n' "$DIM" "$RESET" "$LAST_RC" "$expected"
+    [[ -s $LAST_ERR ]] && printf '       %sstderr:%s %s\n' "$DIM" "$RESET" "$(preview_value "$(<"$LAST_ERR")")"
+    return
+  fi
+  case "$type" in
+    stdout|stdout-unordered-lines)
+      expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+      actual=$(<"$LAST_OUT")
+      printf '       %soutput:%s got %s line(s), expected %s; received %s\n' "$DIM" "$RESET" \
+        "$(line_count "$actual")" "$(line_count "$expected")" "$(preview_value "$actual")"
+      ;;
+    stdout-contains|output-contains|stderr-contains)
+      expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+      case "$type" in
+        stderr-contains) actual=$(<"$LAST_ERR") ;;
+        output-contains) actual="$(<"$LAST_OUT")"$'\n'"$(<"$LAST_ERR")" ;;
+        *) actual=$(<"$LAST_OUT") ;;
+      esac
+      printf '       %smissing fragment:%s %s; received %s\n' "$DIM" "$RESET" \
+        "$(preview_value "$expected")" "$(preview_value "$actual")"
+      ;;
+    stdout-not-contains)
+      expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+      printf '       %sunexpected fragment:%s %s is still present\n' "$DIM" "$RESET" "$(preview_value "$expected")"
+      ;;
+    stdout-nonempty)
+      printf '       %soutput:%s stdout was empty\n' "$DIM" "$RESET"
+      ;;
+    stdout-regex)
+      actual=$(<"$LAST_OUT")
+      printf '       %soutput shape:%s received %s, which did not match the required format\n' "$DIM" "$RESET" "$(preview_value "$actual")"
+      ;;
+    stdout-line-count)
+      expected=$(jq -r '.expected' <<<"$check")
+      actual=$(<"$LAST_OUT")
+      printf '       %sline count:%s got %s, expected %s\n' "$DIM" "$RESET" "$(line_count "$actual")" "$expected"
+      ;;
+    path-exists)
+      path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path='(unsafe path)'
+      kind=$(jq -r '.kind // "any"' <<<"$check")
+      if [[ -L $path ]]; then actual_kind='symlink'; elif [[ -d $path ]]; then actual_kind='directory'; elif [[ -f $path ]]; then actual_kind='file'; elif [[ -e $path ]]; then actual_kind='other'; else actual_kind='missing'; fi
+      printf '       %sfilesystem:%s %s is %s; expected %s\n' "$DIM" "$RESET" "$path" "$actual_kind" "$kind"
+      ;;
+    path-not-exists)
+      path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path='(unsafe path)'
+      printf '       %sfilesystem:%s %s still exists\n' "$DIM" "$RESET" "$path"
+      ;;
+    file-content|file-content-contains)
+      path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+      if [[ ! -f $path ]]; then
+        printf '       %sfilesystem:%s expected a regular file at %s\n' "$DIM" "$RESET" "$path"
+      else
+        actual=$(<"$path")
+        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+        printf '       %sfile content:%s %s has %s line(s); required content was not satisfied (received %s)\n' \
+          "$DIM" "$RESET" "$path" "$(line_count "$actual")" "$(preview_value "$actual")"
+        [[ $type == file-content-contains ]] && printf '       %smissing fragment:%s %s\n' "$DIM" "$RESET" "$(preview_value "$expected")"
+      fi
+      ;;
+    file-equals)
+      path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+      other_path=$(workspace_path "$(jq -r '.other_path' <<<"$check")") || other_path=''
+      printf '       %sfile comparison:%s %s and %s do not contain identical bytes\n' "$DIM" "$RESET" "$path" "$other_path"
+      ;;
+    file-mode)
+      path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+      expected=$(jq -r '.expected' <<<"$check")
+      actual=missing; [[ -e $path ]] && actual=$(stat -c '%a' "$path")
+      printf '       %sfile mode:%s got %s, expected %s for %s\n' "$DIM" "$RESET" "$actual" "$expected" "$path"
+      ;;
+    same-inode|same-owner|same-group)
+      path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+      other_path=$(workspace_path "$(jq -r '.other_path' <<<"$check")") || other_path=''
+      printf '       %sfilesystem relation:%s %s and %s do not yet have the required relationship\n' "$DIM" "$RESET" "$path" "$other_path"
+      ;;
+    exit-code)
+      expected=$(jq -r '.expected' <<<"$check")
+      printf '       %sexit status:%s got %d, expected %s\n' "$DIM" "$RESET" "$LAST_RC" "$expected"
+      ;;
+  esac
+}
+
 evaluate_checks() {
   local print_results=${1:-1}
-  local check type description expected mode path other_path kind actual normalized_actual normalized_expected regex
+  local check type description expected mode path other_path kind actual normalized_actual normalized_expected regex expected_file
   local passed failed=0
 
   while IFS= read -r check; do
@@ -325,12 +763,20 @@ evaluate_checks() {
 
     case "$type" in
       stdout)
-        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
         mode=$(jq -r '.normalize // "trim"' <<<"$check")
-        actual=$(<"$LAST_OUT")
-        normalized_actual=$(normalize_value "$actual" "$mode")
-        normalized_expected=$(normalize_value "$expected" "$mode")
-        [[ $normalized_actual == "$normalized_expected" ]] && passed=1
+        if [[ $mode == exact ]]; then
+          expected_file="$SESSION_DIR/expected-stdout"
+          jq --arg workspace "$WORKSPACE" --arg nonce "$FIXTURE_NONCE" -j \
+            '(.expected // "") | gsub("\\{\\{workspace\\}\\}"; $workspace) | gsub("\\{\\{nonce\\}\\}"; $nonce)' \
+            <<<"$check" >"$expected_file"
+          cmp -s -- "$LAST_OUT" "$expected_file" && passed=1
+        else
+          expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+          actual=$(<"$LAST_OUT")
+          normalized_actual=$(normalize_value "$actual" "$mode")
+          normalized_expected=$(normalize_value "$expected" "$mode")
+          [[ $normalized_actual == "$normalized_expected" ]] && passed=1
+        fi
         ;;
       stdout-unordered-lines)
         expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
@@ -369,6 +815,11 @@ evaluate_checks() {
         actual=$(normalize_value "$(<"$LAST_OUT")")
         [[ $actual =~ ^${regex}$ ]] && passed=1
         ;;
+      stdout-line-count)
+        expected=$(jq -r '.expected' <<<"$check")
+        actual=$(<"$LAST_OUT")
+        [[ $expected =~ ^[0-9]+$ && $(line_count "$actual") == "$expected" ]] && passed=1
+        ;;
       path-exists)
         path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
         kind=$(jq -r '.kind // "any"' <<<"$check")
@@ -386,11 +837,19 @@ evaluate_checks() {
         ;;
       file-content)
         path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
-        expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
         mode=$(jq -r '.normalize // "trim"' <<<"$check")
         if [[ -f $path ]]; then
-          actual=$(<"$path")
-          [[ $(normalize_value "$actual" "$mode") == "$(normalize_value "$expected" "$mode")" ]] && passed=1
+          if [[ $mode == exact ]]; then
+            expected_file="$SESSION_DIR/expected-file-content"
+            jq --arg workspace "$WORKSPACE" --arg nonce "$FIXTURE_NONCE" -j \
+              '(.expected // "") | gsub("\\{\\{workspace\\}\\}"; $workspace) | gsub("\\{\\{nonce\\}\\}"; $nonce)' \
+              <<<"$check" >"$expected_file"
+            cmp -s -- "$path" "$expected_file" && passed=1
+          else
+            expected=$(render_expected "$(jq -r '.expected // ""' <<<"$check")")
+            actual=$(<"$path")
+            [[ $(normalize_value "$actual" "$mode") == "$(normalize_value "$expected" "$mode")" ]] && passed=1
+          fi
         fi
         ;;
       file-content-contains)
@@ -400,6 +859,11 @@ evaluate_checks() {
           actual=$(<"$path")
           [[ $(normalize_value "$actual") == *"$(normalize_value "$expected")"* ]] && passed=1
         fi
+        ;;
+      file-equals)
+        path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
+        other_path=$(workspace_path "$(jq -r '.other_path' <<<"$check")") || other_path=''
+        [[ -f $path && -f $other_path ]] && cmp -s -- "$path" "$other_path" && passed=1
         ;;
       file-mode)
         path=$(workspace_path "$(jq -r '.path' <<<"$check")") || path=''
@@ -430,28 +894,99 @@ evaluate_checks() {
         ;;
     esac
 
+    if ((passed)) && is_output_check_type "$type" && ! output_status_matches; then
+      passed=0
+    fi
+
     if ((passed)); then
       ((print_results)) && printf '%s[PASS]%s %s\n' "$GREEN" "$RESET" "$description"
     else
       ((failed += 1))
-      ((print_results)) && printf '%s[TRY ]%s %s\n' "$YELLOW" "$RESET" "$description"
+      if ((print_results)); then
+        printf '%s[TRY ]%s %s\n' "$YELLOW" "$RESET" "$description"
+        show_check_diagnostic "$check" "$type"
+      fi
     fi
   done < <(jq -c '.checks[]' <<<"$LESSON_JSON")
 
+  # Success requirements apply to state checks too. A command such as
+  # `cp source target; false` must not pass merely because the file exists.
+  if ((failed == 0)) && ! output_status_matches; then
+    ((failed += 1))
+    if ((print_results)); then
+      printf '%s[TRY ]%s The command exited %d; this rep requires the expected successful status.\n' \
+        "$YELLOW" "$RESET" "$LAST_RC"
+    fi
+  fi
+
   if ((failed == 0)); then
-    ALL_CHECKS_PASSED=1
     return 0
   fi
-  ALL_CHECKS_PASSED=0
   return 1
+}
+
+execute_learner_command() {
+  local command_text=$1
+  : >"$LAST_OUT"
+  : >"$LAST_ERR"
+  # Keep all submissions in the same isolated Bash mode used by the learner.
+  bash --noprofile --norc -c "$command_text" >"$LAST_OUT" 2>"$LAST_ERR"
+  LAST_RC=$?
+}
+
+progress_path_signature() {
+  stat --format '%F:%d:%i:%s:%Y' -- "$PROGRESS_FILE" 2>/dev/null || printf 'missing'
+}
+
+restore_progress_snapshot() {
+  local encoded_snapshot=$1 temporary
+  # Never inspect learner-controlled contents after a submission: the path
+  # might now be a FIFO, device link, huge file, or directory. Replace the
+  # exact entry from the controller's in-memory snapshot instead.
+  mkdir -p -- "$PROGRESS_DIR"
+  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create protected progress file."
+  printf '%s' "$encoded_snapshot" | base64 --decode >"$temporary"
+  progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot restore protected progress."; }
+  rm -f -- "$temporary"
 }
 
 run_command() {
   local command_text=$1
-  : >"$LAST_OUT"
-  : >"$LAST_ERR"
-  eval "$command_text" >"$LAST_OUT" 2>"$LAST_ERR"
-  LAST_RC=$?
+  local -r __gym_lesson_json=$LESSON_JSON __gym_lesson_id=$LESSON_ID __gym_lesson_command=$LESSON_COMMAND
+  local -r __gym_lesson_section=$LESSON_SECTION __gym_lesson_difficulty=$LESSON_DIFFICULTY
+  local -r __gym_lesson_stage_name=$LESSON_STAGE_NAME
+  local -r __gym_lesson_order=$LESSON_ORDER __gym_command_order=$LESSON_COMMAND_ORDER __gym_lesson_stage=$LESSON_STAGE
+  local __gym_rc __gym_observed=$TARGET_COMMAND_OBSERVED __gym_pattern __gym_progress_snapshot
+  local __gym_progress_signature __gym_progress_signature_after
+  __gym_progress_snapshot=$(base64 -w0 <"$PROGRESS_FILE")
+  readonly __gym_progress_snapshot
+  __gym_progress_signature=$(progress_path_signature)
+  __gym_pattern="(^|[[:space:];|&(/])${__gym_lesson_command}([[:space:];|&)]|$)"
+  [[ $command_text =~ $__gym_pattern ]] && __gym_observed=1
+
+  # Learner input runs in a dedicated child shell. This keeps useful Bash
+  # syntax fully available while preventing `exit`, `exec`, traps, functions,
+  # aliases, shell options, and variables from mutating the controller itself.
+  execute_learner_command "$command_text"
+  __gym_rc=$LAST_RC
+
+  LESSON_JSON=$__gym_lesson_json
+  LESSON_ID=$__gym_lesson_id
+  LESSON_COMMAND=$__gym_lesson_command
+  LESSON_SECTION=$__gym_lesson_section
+  LESSON_DIFFICULTY=$__gym_lesson_difficulty
+  LESSON_STAGE_NAME=$__gym_lesson_stage_name
+  LESSON_ORDER=$__gym_lesson_order
+  LESSON_COMMAND_ORDER=$__gym_command_order
+  LESSON_STAGE=$__gym_lesson_stage
+  TARGET_COMMAND_OBSERVED=$__gym_observed
+  LAST_RC=$__gym_rc
+
+  __gym_progress_signature_after=$(progress_path_signature)
+  restore_progress_snapshot "$__gym_progress_snapshot"
+  if [[ $__gym_progress_signature_after != "$__gym_progress_signature" ]]; then
+    printf '%sController protection:%s direct progress changes were discarded.\n' "$YELLOW" "$RESET" >&2
+  fi
   command cat "$LAST_OUT"
   command cat "$LAST_ERR" >&2
   printf '%s[exit %d]%s\n' "$DIM" "$LAST_RC" "$RESET"
@@ -486,6 +1021,7 @@ Gym controls
   :hint       reveal the next hint, then the reference approach
   :example    repeat the annotated example
   :files      show the current real files and directories
+  :samples    copy fresh open-ended practice files into ./samples
   :reset      rebuild this rep's starting workspace
   :check      grade the last output and current filesystem state
   :shell      open an unwrapped interactive Bash subshell
@@ -498,18 +1034,24 @@ Gym controls
 
 Everything else is evaluated as Bash. Use any valid command, pipeline,
 redirect, variable, loop, function, or command sequence. Grading checks the
-result, not the text you typed. Restart the disposable container if you break it.
+result, not the text you typed. Each graded submission gets a fresh Bash process,
+so keep stateful steps together or use :shell for persistent exploration.
 HELP
 }
 
 show_status() {
-  local completed xp level rank streak
-  completed=$(jq '.completed | length' "$PROGRESS_FILE")
+  local completed introduced mastered due xp level rank streak today
+  completed=$(jq --slurpfile catalog "$CATALOG" '[$catalog[0].lessons[].id as $id | select(.completed[$id] != null)] | length' "$PROGRESS_FILE")
+  introduced=$(jq --slurpfile catalog "$CATALOG" '[$catalog[0].lessons[].id as $id | .completed[$id] | select(. != null and ((.status // "mastered") == "introduced"))] | length' "$PROGRESS_FILE")
+  mastered=$(jq --slurpfile catalog "$CATALOG" '[$catalog[0].lessons[].id as $id | .completed[$id] | select(. != null and ((.status // "mastered") == "mastered"))] | length' "$PROGRESS_FILE")
+  today=$(current_day)
+  due=$(jq --arg today "$today" --slurpfile catalog "$CATALOG" '[$catalog[0].lessons[].id as $id | .completed[$id] | select(. != null and ((.review_due // $today) <= $today))] | length' "$PROGRESS_FILE")
   xp=$(total_xp)
   level=$((xp / 500 + 1))
   rank=$(rank_for_level "$level")
   streak=$(streak_days)
   printf '%sLinux progress%s  %d/%d reps · %d XP · Level %d %s · %d-day streak\n' "$BOLD" "$RESET" "$completed" "$TOTAL_LESSONS" "$xp" "$level" "$rank" "$streak"
+  printf '  Mastered: %d · Introduced with help: %d · Reviews due: %d\n' "$mastered" "$introduced" "$due"
   jq -r --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
     .lessons
     | group_by(.section)[]
@@ -520,28 +1062,55 @@ show_status() {
 }
 
 list_reps() {
-  jq -r --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
+  local section='' command_filter='' unfinished=0 due_only=0 today
+  today=$(current_day)
+  while (($#)); do
+    case "$1" in
+      --section)
+        [[ -n ${2:-} ]] || die "Usage: gym list --section <name>"
+        section=$2; shift 2 ;;
+      --command)
+        [[ -n ${2:-} ]] || die "Usage: gym list --command <name>"
+        command_filter=$2; shift 2 ;;
+      --unfinished) unfinished=1; shift ;;
+      --due) due_only=1; shift ;;
+      *) die "Unknown list filter '$1'. Use --section, --command, --unfinished, or --due." ;;
+    esac
+  done
+  jq -r \
+    --arg section "$section" \
+    --arg command "$command_filter" \
+    --arg today "$today" \
+    --argjson unfinished "$unfinished" \
+    --argjson due_only "$due_only" \
+    --argjson completed "$(jq -c '.completed' "$PROGRESS_FILE")" '
     .lessons | sort_by(.order)[]
-    | (if $completed[.id] != null then "✓" else "·" end) as $mark
+    | select($section == "" or (.section | ascii_downcase | contains($section | ascii_downcase)))
+    | select($command == "" or (.command | ascii_downcase) == ($command | ascii_downcase))
+    | select($unfinished == 0 or $completed[.id] == null)
+    | select($due_only == 0 or ($completed[.id] != null and (($completed[.id].review_due // $today) <= $today)))
+    | (if $completed[.id] == null then "·"
+       elif (($completed[.id].review_due // "9999-12-31") <= $today) then "↻"
+       elif (($completed[.id].status // "mastered") == "introduced") then "◐"
+       else "✓" end) as $mark
     | "\($mark) \(.order | tostring | if length < 3 then ("0" * (3 - length)) + . else . end)  \(.command) \(.stage)/5 — \(.title)"
   ' "$CATALOG"
 }
 
 lesson_session() {
-  local selector=$1 attempts=0 hints_used=0 hint_index=0 completed_here=0 command_text count hint xp level rank next target target_id
+  local selector=$1 attempts=0 hints_used=0 hint_index=0 completed_here=0 command_text count hint xp level rank next target target_id completion_status daily_record daily_reason
+  local __gym_shell_snapshot __gym_shell_signature __gym_shell_signature_after
   load_lesson "$selector" || die "Unknown rep '$selector'. Use 'gym list' to see valid IDs, numbers, and commands."
   seed_workspace
   show_lesson
 
-  if jq -e --arg id "$LESSON_ID" '.completed[$id] != null' "$PROGRESS_FILE" >/dev/null; then
-    printf '%sAlready completed; replay it freely. Your best score is retained.%s\n\n' "$DIM" "$RESET"
+  if [[ -n $SESSION_DAILY_KIND ]]; then
+    printf '%sDAILY %s:%s %s\n\n' "$CYAN$BOLD" "${SESSION_DAILY_KIND^^}" "$RESET" \
+      "$(jq -r --arg id "$LESSON_ID" '.completed[$id].review_due // empty' "$PROGRESS_FILE" | sed 's/^/scheduled /')"
   fi
 
-  if [[ -f $PROGRESS_DIR/history ]]; then
-    HISTFILE="$PROGRESS_DIR/history"
-    history -r
-  else
-    HISTFILE="$PROGRESS_DIR/history"
+  if jq -e --arg id "$LESSON_ID" '.completed[$id] != null' "$PROGRESS_FILE" >/dev/null; then
+    printf '%sAlready completed; replay it freely. Your best score is retained.%s\n\n' "$DIM" "$RESET"
   fi
 
   while true; do
@@ -549,13 +1118,13 @@ lesson_session() {
     if [[ $PWD == "$WORKSPACE" ]]; then
       shown_pwd='~'
     elif [[ $PWD == "$WORKSPACE/"* ]]; then
-      shown_pwd="~/${PWD#"$WORKSPACE/"}"
+      # shellcheck disable=SC2088 # This tilde is prompt text, not a path expansion.
+      printf -v shown_pwd '~/%s' "${PWD#"$WORKSPACE/"}"
     fi
     read_command "${CYAN}gym[${LESSON_ORDER}]${RESET}:${shown_pwd}$ " || { printf '\nSession ended.\n'; return 0; }
     command_text=$COMMAND_INPUT
     [[ -n ${command_text//[[:space:]]/} ]] || continue
     history -s "$command_text"
-    history -w
 
     case "$command_text" in
       :hint)
@@ -571,43 +1140,86 @@ lesson_session() {
           printf 'All hints have been shown.\n'
         fi
         ;;
-      :example) show_example ;;
+      :example)
+        if lesson_is_blind; then
+          printf 'Worked examples stay hidden in blind review. Use :hint if you want assisted guidance.\n'
+        else
+          show_example
+        fi
+        ;;
       :files) show_files ;;
+      :samples)
+        rm -rf --one-file-system -- "$WORKSPACE/samples" || die "Cannot refresh sample workspace."
+        command cp -a -- "$GYM_ROOT/sample-files" "$WORKSPACE/samples" || die "Cannot copy sample files."
+        printf 'Fresh open-ended practice files copied to %s/samples.\n' "$WORKSPACE"
+        ;;
       :lesson) show_lesson ;;
       :help) show_session_help ;;
       :status) show_status ;;
       :reset)
         seed_workspace
-        completed_here=0
         printf 'Workspace restored for rep %03d.\n' "$LESSON_ORDER"
         ;;
       :check)
         printf '\n%sCHECK%s\n' "$BOLD" "$RESET"
-        if evaluate_checks 1 && ((completed_here == 0)); then
+        if ((attempts == 0)); then
+          printf '%sRun at least one command (or use :shell) before grading this rep.%s\n' "$YELLOW" "$RESET"
+        elif evaluate_checks 1 && ((completed_here == 0)); then
           xp=$(mark_complete "$attempts" "$hints_used")
           completed_here=1
+          note_daily_completion
+          completion_status=$(jq -r --arg id "$LESSON_ID" '.completed[$id].status' "$PROGRESS_FILE")
           level=$(($(total_xp) / 500 + 1))
           rank=$(rank_for_level "$level")
           printf '\n%sREP COMPLETE%s\n%s\n' "$GREEN$BOLD" "$RESET" "$(jq -r '.completion' <<<"$LESSON_JSON")"
-          printf 'XP: +%d · Total: %d · Level %d %s\n' "$xp" "$(total_xp)" "$level" "$rank"
+          printf 'Learning state: %s · XP: +%d · Total: %d · Level %d %s\n' "$completion_status" "$xp" "$(total_xp)" "$level" "$rank"
         fi
         ;;
       :shell)
         printf '%sOpening raw Bash. Type exit to return to the gym and grade file changes.%s\n' "$DIM" "$RESET"
+        __gym_shell_snapshot=$(base64 -w0 <"$PROGRESS_FILE")
+        __gym_shell_signature=$(progress_path_signature)
         PS1='raw:\w# ' bash --noprofile --norc -i
+        ((attempts += 1))
+        __gym_shell_signature_after=$(progress_path_signature)
+        restore_progress_snapshot "$__gym_shell_snapshot"
+        if [[ $__gym_shell_signature_after != "$__gym_shell_signature" ]]; then
+          printf '%sController protection:%s direct progress changes were discarded.\n' "$YELLOW" "$RESET" >&2
+        fi
         printf '\n%sCHECK%s\n' "$BOLD" "$RESET"
         evaluate_checks 1 || true
         ;;
       :next)
-        next=$(next_order_id)
-        if [[ -z $next ]]; then
-          printf 'That was Linux rep %d. Nice work.\n' "$TOTAL_LESSONS"
+        if ((SESSION_DAILY_ACTIVE)); then
+          if ((completed_here == 0)); then
+            printf 'Complete this rep before advancing the daily queue, or use :quit to leave.\n'
+          elif ((SESSION_DAILY_DONE >= SESSION_DAILY_GOAL)); then
+            printf '%sDaily goal complete:%s %d/%d reps. Come back tomorrow or keep practicing with gym review.\n' \
+              "$GREEN$BOLD" "$RESET" "$SESSION_DAILY_DONE" "$SESSION_DAILY_GOAL"
+            return 0
+          else
+            daily_record=$(daily_rep)
+            [[ -n $daily_record ]] || { printf 'No additional daily rep is available.\n'; return 0; }
+            IFS=$'\t' read -r next SESSION_DAILY_KIND daily_reason <<<"$daily_record"
+            remember_daily_rep "$next"
+            SESSION_REVIEW_MODE=0
+            [[ $SESSION_DAILY_KIND == review || $SESSION_DAILY_KIND == early-review ]] && SESSION_REVIEW_MODE=1
+            printf '%sNext daily selection:%s %s · %s\n' "$CYAN$BOLD" "$RESET" "$SESSION_DAILY_KIND" "$daily_reason"
+            NAVIGATE_TO=$next
+            return 0
+          fi
         else
-          NAVIGATE_TO=$next
-          return 0
+          next=$(next_order_id)
+          if [[ -z $next ]]; then
+            printf 'That was Linux rep %d. Nice work.\n' "$TOTAL_LESSONS"
+          else
+            NAVIGATE_TO=$next
+            return 0
+          fi
         fi
         ;;
       :previous|:prev)
+        leave_daily_mode
         next=$(previous_order_id)
         if [[ -z $next ]]; then
           printf 'This is Linux rep 001; there is no previous rep.\n'
@@ -625,8 +1237,10 @@ lesson_session() {
         target=${target%"${target##*[![:space:]]}"}
         target_id=$(lesson_id_for_selector "$target")
         if [[ -z $target_id ]]; then
-          printf "Unknown rep '%s'. Use :go with a number, command, or lesson ID.\n" "$target"
+          printf "Unknown rep '%s'. Nearby commands:\n" "$target"
+          suggest_selectors "$target"
         else
+          leave_daily_mode
           NAVIGATE_TO=$target_id
           return 0
         fi
@@ -641,10 +1255,20 @@ lesson_session() {
           if ((completed_here == 0)); then
             xp=$(mark_complete "$attempts" "$hints_used")
             completed_here=1
+            note_daily_completion
+            completion_status=$(jq -r --arg id "$LESSON_ID" '.completed[$id].status' "$PROGRESS_FILE")
             level=$(($(total_xp) / 500 + 1))
             rank=$(rank_for_level "$level")
             printf '\n%sREP COMPLETE%s\n%s\n' "$GREEN$BOLD" "$RESET" "$(jq -r '.completion' <<<"$LESSON_JSON")"
-            printf 'Attempts: %d · Hints: %d · XP: +%d · Total: %d · Level %d %s\n' "$attempts" "$hints_used" "$xp" "$(total_xp)" "$level" "$rank"
+            printf 'Learning state: %s · Attempts: %d · Hints: %d · XP: +%d · Total: %d · Level %d %s\n' \
+              "$completion_status" "$attempts" "$hints_used" "$xp" "$(total_xp)" "$level" "$rank"
+            if [[ $(jq -r '.mode // "guided"' <<<"$LESSON_JSON") == capstone ]]; then
+              if ((TARGET_COMMAND_OBSERVED)); then
+                printf '%sTransfer evidence:%s the target command appeared in your approach.\n' "$DIM" "$RESET"
+              else
+                printf '%sTransfer evidence:%s you solved it with a different valid approach.\n' "$DIM" "$RESET"
+              fi
+            fi
             if ((LESSON_ORDER < TOTAL_LESSONS)); then
               printf 'Use :next when you are ready for rep %03d, or :go to jump elsewhere.\n' "$((LESSON_ORDER + 1))"
             else
@@ -666,7 +1290,88 @@ interactive_lesson() {
     lesson_session "$selector"
     [[ -n $NAVIGATE_TO ]] || return 0
     selector=$NAVIGATE_TO
+    if ((SESSION_DAILY_ACTIVE == 0)); then
+      SESSION_DAILY_KIND=''
+      SESSION_REVIEW_MODE=0
+    fi
   done
+}
+
+progress_export() {
+  local destination=${1:--}
+  if [[ $destination == - ]]; then
+    jq . "$PROGRESS_FILE"
+  else
+    command cp -- "$PROGRESS_FILE" "$destination" || die "Cannot export progress to $destination"
+    printf 'Progress exported to %s\n' "$destination"
+  fi
+}
+
+progress_import() {
+  local source=${1:-} temporary backup
+  [[ -n $source ]] || die "Usage: gym progress import <file|->"
+  temporary=$(mktemp "$PROGRESS_DIR/import.XXXXXX") || die "Cannot create progress import file."
+  if [[ $source == - ]]; then
+    [[ ! -t 0 ]] || { rm -f -- "$temporary"; die "Pipe progress JSON to stdin or provide a file."; }
+    command cp -- /dev/stdin "$temporary" || { rm -f -- "$temporary"; die "Cannot read progress from stdin."; }
+  else
+    [[ -f $source ]] || { rm -f -- "$temporary"; die "Progress import file not found: $source"; }
+    command cp -- "$source" "$temporary" || { rm -f -- "$temporary"; die "Cannot read progress import: $source"; }
+  fi
+  if ! progress_document_valid "$temporary"; then
+    rm -f -- "$temporary"
+    die "Import rejected: expected Linux progress JSON with completed (object) and activity (array)."
+  fi
+  backup=$(progress_backup_name pre-import)
+  command cp -- "$PROGRESS_FILE" "$backup" || { rm -f -- "$temporary"; die "Cannot preserve pre-import progress."; }
+  progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot install imported progress."; }
+  rm -f -- "$temporary"
+  progress_init
+  printf 'Progress imported. Previous progress is preserved at %s\n' "$backup"
+}
+
+progress_reset() {
+  local confirmation=${1:-} backup temporary
+  [[ $confirmation == --yes ]] || die "Progress reset is destructive. Run: gym progress reset --yes"
+  backup=$(progress_backup_name pre-reset)
+  command cp -- "$PROGRESS_FILE" "$backup" || die "Cannot preserve pre-reset progress."
+  temporary=$(mktemp "$PROGRESS_DIR/progress.XXXXXX") || die "Cannot create progress reset file."
+  new_progress_document >"$temporary" || { rm -f -- "$temporary"; die "Cannot prepare reset progress."; }
+  progress_write_atomic "$temporary" || { rm -f -- "$temporary"; die "Cannot reset progress."; }
+  rm -f -- "$temporary"
+  printf 'Progress reset. The previous record is preserved at %s\n' "$backup"
+}
+
+show_doctor() {
+  local failures=0 item
+  printf '%sLinux gym doctor%s\n' "$BOLD" "$RESET"
+  for item in bash jq sed awk find stat realpath base64; do
+    if command -v "$item" >/dev/null 2>&1; then
+      printf '  %s[PASS]%s %s available\n' "$GREEN" "$RESET" "$item"
+    else
+      printf '  %s[FAIL]%s %s is missing\n' "$RED" "$RESET" "$item"
+      ((failures += 1))
+    fi
+  done
+  if test_catalog; then
+    printf '  %s[PASS]%s curriculum structure is valid\n' "$GREEN" "$RESET"
+  else
+    printf '  %s[FAIL]%s curriculum structure is invalid\n' "$RED" "$RESET"
+    ((failures += 1))
+  fi
+  if progress_document_valid "$PROGRESS_FILE" && [[ $(jq -r '.schema_version' "$PROGRESS_FILE") == "$PROGRESS_SCHEMA_VERSION" ]]; then
+    printf '  %s[PASS]%s progress schema v%d is healthy\n' "$GREEN" "$RESET" "$PROGRESS_SCHEMA_VERSION"
+  else
+    printf '  %s[FAIL]%s progress record is unhealthy\n' "$RED" "$RESET"
+    ((failures += 1))
+  fi
+  if [[ -w $WORKSPACE && -w $PROGRESS_DIR ]]; then
+    printf '  %s[PASS]%s workspace and progress storage are writable\n' "$GREEN" "$RESET"
+  else
+    printf '  %s[FAIL]%s workspace or progress storage is not writable\n' "$RED" "$RESET"
+    ((failures += 1))
+  fi
+  ((failures == 0))
 }
 
 test_catalog() {
@@ -687,14 +1392,14 @@ test_catalog() {
     and (.lessons | all(
       has("id") and has("order") and has("section") and has("command")
       and has("command_order") and has("stage") and has("stage_name")
-      and has("title") and has("about") and has("example") and has("task")
+      and has("title") and has("focus") and has("example") and has("task")
       and has("solution") and has("files") and has("checks") and has("completion")
       and (has("allowed") | not) and (has("operators") | not)
     ))
     and ([.lessons[].checks[].type] - [
       "stdout", "stdout-unordered-lines", "stdout-contains", "stdout-not-contains", "output-contains",
-      "stderr-contains", "stdout-nonempty", "stdout-regex", "path-exists",
-      "path-not-exists", "file-content", "file-content-contains", "file-mode", "same-inode",
+      "stderr-contains", "stdout-nonempty", "stdout-regex", "stdout-line-count", "path-exists",
+      "path-not-exists", "file-content", "file-content-contains", "file-equals", "file-mode", "same-inode",
       "same-owner", "same-group", "exit-code"
     ] | length == 0)
     and (.lessons | all(
@@ -707,6 +1412,14 @@ test_catalog() {
         (.checks[]?.other_path // empty)
       ]
       | all((startswith("/") or contains("..")) | not)
+    ))
+    and (.lessons | all(
+      ((.mode // "guided") | IN("guided", "capstone"))
+      and ((.requires_success // true) | type == "boolean")
+      and ((.concepts // []) | type == "array")
+      and ((.prerequisites // []) | type == "array")
+      and ((.introduced_inline // []) | type == "array")
+      and ((.adversarial_commands // []) | type == "array")
     ))
   ' "$CATALOG" >/dev/null
 }
@@ -730,6 +1443,83 @@ test_navigation_helpers() {
   [[ -z $(next_order_id) ]] || return 1
 }
 
+test_check_engine() {
+  local saved_json=$LESSON_JSON saved_rc=$LAST_RC
+  local saved_nonce=$FIXTURE_NONCE
+
+  LESSON_JSON='{"requires_success":true,"checks":[{"type":"stdout","description":"exact","expected":"right"}]}'
+  printf 'wrong\n' >"$LAST_OUT"; : >"$LAST_ERR"; LAST_RC=0
+  if evaluate_checks 0; then
+    LESSON_JSON=$saved_json; LAST_RC=$saved_rc; FIXTURE_NONCE=$saved_nonce
+    return 1
+  fi
+
+  LESSON_JSON='{"requires_success":true,"checks":[{"type":"stdout-nonempty","description":"nonempty"}]}'
+  printf 'command not found\n' >"$LAST_OUT"; : >"$LAST_ERR"; LAST_RC=127
+  if evaluate_checks 0; then
+    LESSON_JSON=$saved_json; LAST_RC=$saved_rc; FIXTURE_NONCE=$saved_nonce
+    return 1
+  fi
+
+  LESSON_JSON='{"requires_success":true,"checks":[{"type":"stdout-line-count","description":"one line","expected":1}]}'
+  printf 'one\ntwo\n' >"$LAST_OUT"; : >"$LAST_ERR"; LAST_RC=0
+  if evaluate_checks 0; then
+    LESSON_JSON=$saved_json; LAST_RC=$saved_rc; FIXTURE_NONCE=$saved_nonce
+    return 1
+  fi
+
+  LESSON_JSON='{"requires_success":true,"checks":[{"type":"stdout-line-count","description":"two nonblank lines","expected":2}]}'
+  printf 'one\n\ntwo\n' >"$LAST_OUT"; : >"$LAST_ERR"; LAST_RC=0
+  if ! evaluate_checks 0; then
+    LESSON_JSON=$saved_json; LAST_RC=$saved_rc; FIXTURE_NONCE=$saved_nonce
+    return 1
+  fi
+
+  printf 'proof\n' >"$WORKSPACE/.grader-state"
+  LESSON_JSON='{"requires_success":true,"checks":[{"type":"path-exists","description":"state exists","path":".grader-state","kind":"file"}]}'
+  : >"$LAST_OUT"; : >"$LAST_ERR"; LAST_RC=1
+  if evaluate_checks 0; then
+    rm -f -- "$WORKSPACE/.grader-state"
+    LESSON_JSON=$saved_json; LAST_RC=$saved_rc; FIXTURE_NONCE=$saved_nonce
+    return 1
+  fi
+  rm -f -- "$WORKSPACE/.grader-state"
+
+  LESSON_JSON=$saved_json; LAST_RC=$saved_rc; FIXTURE_NONCE=$saved_nonce
+  return 0
+}
+
+test_initial_fixtures_fail() {
+  local id failures=0
+  while IFS= read -r id; do
+    load_lesson "$id"
+    seed_workspace
+    if evaluate_checks 0; then
+      ((failures += 1))
+      printf '  %sFAIL%s %03d %s starts already complete\n' "$RED" "$RESET" "$LESSON_ORDER" "$LESSON_COMMAND"
+    fi
+  done < <(jq -r '.lessons | sort_by(.order)[] | .id' "$CATALOG")
+  ((failures == 0))
+}
+
+test_adversarial_commands() {
+  local id encoded adversarial failures=0
+  while IFS= read -r id; do
+    load_lesson "$id"
+    while IFS= read -r encoded; do
+      [[ -n $encoded ]] || continue
+      adversarial=$(printf '%s' "$encoded" | base64 --decode)
+      seed_workspace
+      execute_learner_command "$adversarial" </dev/null
+      if evaluate_checks 0; then
+        ((failures += 1))
+        printf '  %sFAIL%s %03d adversarial command passed: %s\n' "$RED" "$RESET" "$LESSON_ORDER" "$adversarial"
+      fi
+    done < <(jq -r '.adversarial_commands[]? | @base64' <<<"$LESSON_JSON")
+  done < <(jq -r '.lessons | sort_by(.order)[] | .id' "$CATALOG")
+  ((failures == 0))
+}
+
 test_reference_solutions() {
   local id solution failures=0
   printf 'Checking curriculum structure... '
@@ -748,15 +1538,36 @@ test_reference_solutions() {
     return 1
   fi
 
+  printf 'Checking negative grading behavior... '
+  if test_check_engine; then
+    printf '%sPASS%s\n' "$GREEN" "$RESET"
+  else
+    printf '%sFAIL%s\n' "$RED" "$RESET"
+    return 1
+  fi
+
+  printf 'Checking that no starting fixture is already complete...\n'
+  if test_initial_fixtures_fail; then
+    printf '  %sPASS%s all starting fixtures require learner action\n' "$GREEN" "$RESET"
+  else
+    printf '%sInitial-state grading invariant failed.%s\n' "$RED" "$RESET"
+    return 1
+  fi
+
+  printf 'Running curriculum adversarial commands...\n'
+  if test_adversarial_commands; then
+    printf '  %sPASS%s all declared adversarial approaches were rejected\n' "$GREEN" "$RESET"
+  else
+    printf '%sAdversarial grading checks failed.%s\n' "$RED" "$RESET"
+    return 1
+  fi
+
   printf 'Running all %d Linux reference approaches in real Bash...\n' "$TOTAL_LESSONS"
   while IFS= read -r id; do
     load_lesson "$id"
     seed_workspace
     solution=$(jq -r '.solution' <<<"$LESSON_JSON")
-    : >"$LAST_OUT"
-    : >"$LAST_ERR"
-    eval "$solution" </dev/null >"$LAST_OUT" 2>"$LAST_ERR"
-    LAST_RC=$?
+    execute_learner_command "$solution" </dev/null
     if evaluate_checks 0; then
       printf '  %sPASS%s %03d %s\n' "$GREEN" "$RESET" "$LESSON_ORDER" "$LESSON_COMMAND"
     else
@@ -782,10 +1593,16 @@ Hacker CLI Gym — a disposable, outcome-graded Linux command line
 
 Usage inside the image:
   gym start          start the next unfinished rep
-  gym daily          open one daily rep (the next unfinished rep)
+  gym daily [COUNT]  run a short due-review/new-rep queue (default: 3)
+  gym review [REP]   run a blind review by selector (or the daily choice)
   gym run awk        run by command, number, or lesson ID
-  gym list           list all 500 Linux reps
+  gym list           list reps; filter with --section, --command, --unfinished, --due
   gym status         show progress, XP, level, and streak
+  gym progress export [FILE|-]
+  gym progress import <FILE|->
+  gym progress reset --yes
+  gym samples        copy open-ended sample files into /work/samples
+  gym doctor         validate the curriculum, storage, and runtime
   gym test           validate and execute all reference approaches
   gym help           show this help
 
@@ -796,7 +1613,7 @@ HELP
 main() {
   progress_init
   case "${1:-start}" in
-    start|daily)
+    start)
       local next
       next=$(next_incomplete_id)
       if [[ -z $next ]]; then
@@ -806,16 +1623,71 @@ main() {
         interactive_lesson "$next"
       fi
       ;;
+    daily)
+      local daily_record daily_id daily_reason requested_goal
+      requested_goal=${2:-$(jq -r '.settings.daily_goal // 3' "$PROGRESS_FILE")}
+      [[ $requested_goal =~ ^[1-9][0-9]*$ && $requested_goal -le 10 ]] || die "Daily count must be from 1 to 10."
+        SESSION_DAILY_ACTIVE=1
+        SESSION_DAILY_GOAL=$requested_goal
+        SESSION_DAILY_DONE=0
+        SESSION_DAILY_SEEN='[]'
+      daily_record=$(daily_rep)
+      if [[ -z $daily_record ]]; then
+        printf 'No Linux reps are available.\n'
+        show_status
+      else
+        IFS=$'\t' read -r daily_id SESSION_DAILY_KIND daily_reason <<<"$daily_record"
+        remember_daily_rep "$daily_id"
+        [[ $SESSION_DAILY_KIND == review || $SESSION_DAILY_KIND == early-review ]] && SESSION_REVIEW_MODE=1
+        printf '%sDaily session:%s goal %d · first selection %s · %s\n' "$CYAN$BOLD" "$RESET" "$SESSION_DAILY_GOAL" "$SESSION_DAILY_KIND" "$daily_reason"
+        interactive_lesson "$daily_id"
+      fi
+      ;;
+    review)
+      local review_selector=${2:-} review_record
+      SESSION_REVIEW_MODE=1
+      SESSION_DAILY_KIND=''
+      if [[ -z $review_selector ]]; then
+        review_record=$(daily_rep)
+        IFS=$'\t' read -r review_selector _ _ <<<"$review_record"
+      fi
+      [[ -n $review_selector ]] || die "No rep is available to review."
+      interactive_lesson "$review_selector"
+      ;;
     run)
       [[ -n ${2:-} ]] || die "Usage: gym run <number|command|lesson-id>"
       interactive_lesson "$2"
       ;;
-    list) list_reps ;;
+    list) shift; list_reps "$@" ;;
     status) show_status ;;
+    samples)
+      local samples_snapshot
+      samples_snapshot=$(base64 -w0 <"$PROGRESS_FILE")
+      rm -rf --one-file-system -- "$WORKSPACE/samples" || die "Cannot refresh sample workspace."
+      command cp -a -- "$GYM_ROOT/sample-files" "$WORKSPACE/samples" || die "Cannot copy sample files."
+      printf 'Open-ended sample files copied to %s/samples. Opening raw Bash; type exit when done.\n' "$WORKSPACE"
+      PS1='samples:\w# ' bash --noprofile --norc -i
+      restore_progress_snapshot "$samples_snapshot"
+      ;;
+    progress)
+      case "${2:-}" in
+        export) progress_export "${3:--}" ;;
+        import) progress_import "${3:-}" ;;
+        reset) progress_reset "${3:-}" ;;
+        *) die "Usage: gym progress <export [FILE|-]|import FILE|reset --yes>" ;;
+      esac
+      ;;
+    export) progress_export "${2:--}" ;;
+    import) progress_import "${2:-}" ;;
+    doctor) show_doctor ;;
     test) test_reference_solutions ;;
     help|-h|--help) show_help ;;
     *) die "Unknown command '$1'. Use gym help." ;;
   esac
 }
+
+readonly -f die progress_document_valid progress_write_atomic load_lesson seed_workspace \
+  lesson_id_for_selector evaluate_checks mark_complete execute_learner_command \
+  progress_path_signature restore_progress_snapshot cleanup_fixture_processes run_command
 
 main "$@"

@@ -16,7 +16,7 @@ composition, and a practical workflow.
 | 251–300 | Identity and permissions | `chmod`, `chown`, `chgrp`, `umask`, `id`, `whoami`, `groups`, `getent`, `users`, `who` |
 | 301–350 | Processes and execution | `ps`, `top`, `pgrep`, `kill`, `nohup`, `nice`, `timeout`, `sleep`, `time`, `seq` |
 | 351–400 | System and storage | `uname`, `hostname`, `uptime`, `date`, `cal`, `env`, `printenv`, `df`, `du`, `free` |
-| 401–450 | Archives and integrity | `tar`, `gzip`, `gunzip`, `bzip2`, `bunzip2`, `xz`, `unxz`, `zip`, `unzip`, `sha256sum` |
+| 401–450 | Archives, data, and automation | `tar`, `gzip`, `source`, `bzip2`, `find`, `xz`, `jq`, `zip`, `unzip`, `sha256sum` |
 | 451–500 | Networking and services | `ip`, `ss`, `ping`, `curl`, `wget`, `ssh`, `scp`, `rsync`, `systemctl`, `journalctl` |
 
 Linux exercises run in real Bash inside the disposable Debian image. The final
@@ -32,7 +32,7 @@ section uses only offline or loopback fixtures.
 | 151–200 | Structured data | `ConvertFrom-Csv`, `ConvertTo-Csv`, `Import-Csv`, `Export-Csv`, `ConvertTo-Json`, `ConvertFrom-Json`, `ConvertTo-Xml`, `Select-Xml`, `ConvertTo-Html`, `Out-File` |
 | 201–250 | Variables and output | `Get-Variable`, `Set-Variable`, `Remove-Variable`, `Get-Member`, `Write-Output`, `Write-Host`, `Format-Table`, `Format-List`, `Out-String`, `Write-Warning` |
 | 251–300 | Paths, archives, and security | `Split-Path`, `Convert-Path`, `Get-PSDrive`, `Get-PSProvider`, `Get-ItemProperty`, `Compress-Archive`, `Expand-Archive`, `Export-Clixml`, `Import-Clixml`, `Get-Acl` |
-| 301–350 | Processes, services, and modules | `Get-Process`, `Stop-Process`, `Start-Sleep`, `Get-Service`, `Start-Service`, `Stop-Service`, `Restart-Service`, `Get-Module`, `Import-Module`, `Measure-Command` |
+| 301–350 | Processes, jobs, and modules | `Get-Process`, `Stop-Process`, `Start-Sleep`, `Get-Service`, `Start-Job`, `Get-Job`, `Receive-Job`, `Get-Module`, `Import-Module`, `Measure-Command` |
 | 351–400 | Time and system inventory | `Get-Date`, `New-TimeSpan`, `Get-Random`, `Get-Culture`, `Get-Host`, `Get-CimInstance`, `Get-ComputerInfo`, `Get-HotFix`, `Get-Disk`, `Get-Volume` |
 | 401–450 | Networking and policy | `Get-NetIPAddress`, `Get-NetIPConfiguration`, `Get-NetAdapter`, `Get-NetRoute`, `Get-NetTCPConnection`, `Test-Connection`, `Resolve-DnsName`, `Get-ExecutionPolicy`, `Get-AuthenticodeSignature`, `Set-Acl` |
 | 451–500 | Windows administration | `Get-LocalUser`, `Get-LocalGroup`, `Get-LocalGroupMember`, `Get-ScheduledTask`, `Get-WinEvent`, `Get-EventLog`, `Invoke-Command`, `Set-StrictMode`, `Get-WmiObject`, `Get-TimeZone` |

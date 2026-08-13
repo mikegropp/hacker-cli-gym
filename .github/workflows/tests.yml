@@ -12,39 +12,128 @@ jobs:
   linux-gym:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
 
       - name: Check Bash syntax
         run: bash -n gym container/gym
+
+      - name: Analyze Bash launchers
+        run: |
+          docker run --rm --volume "$PWD:/mnt:ro" \
+            koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d \
+            /mnt/gym /mnt/container/gym
+
+      - name: Analyze Dockerfile
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
 
       - name: Regenerate curricula
         run: |
           node tools/generate-linux-curriculum.mjs
           node tools/generate-powershell-curriculum.mjs
+          node tools/validate-curricula.mjs
           git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
 
       - name: Build the Linux gym
         run: docker build --tag hacker-cli-gym:test .
 
       - name: Run all 500 Linux reference approaches
-        run: docker run --rm --network none hacker-cli-gym:test test
+        run: |
+          docker volume create hacker-cli-gym-ci-progress
+          docker run --rm --init --network none --read-only \
+            --tmpfs /work:rw,exec,nosuid,nodev,size=256m,mode=1777 \
+            --tmpfs /tmp:rw,exec,nosuid,nodev,size=64m,mode=1777 \
+            --tmpfs /run:rw,nosuid,nodev,size=32m,mode=0755 \
+            --tmpfs /var/tmp:rw,exec,nosuid,nodev,size=32m,mode=1777 \
+            --security-opt no-new-privileges:true --cap-drop ALL \
+            --cap-add AUDIT_WRITE --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add FSETID \
+            --cap-add NET_RAW --cap-add SETGID --cap-add SETUID --cap-add SYS_CHROOT \
+            --pids-limit 512 --memory 768m --cpus 2.0 \
+            --volume hacker-cli-gym-ci-progress:/var/lib/hacker-cli-gym \
+            hacker-cli-gym:test test
+          docker volume rm hacker-cli-gym-ci-progress
+
+      - name: Exercise Linux progress recovery
+        run: |
+          docker volume create hacker-cli-gym-ci-recovery
+          docker run --rm --volume hacker-cli-gym-ci-recovery:/state \
+            --entrypoint bash hacker-cli-gym:test -c "printf '{broken' > /state/progress.json"
+          docker run --rm --network none --volume hacker-cli-gym-ci-recovery:/var/lib/hacker-cli-gym \
+            hacker-cli-gym:test status
+          docker run --rm --volume hacker-cli-gym-ci-recovery:/state \
+            --entrypoint bash hacker-cli-gym:test -c "set -e; test -f /state/progress.json; compgen -G '/state/progress.corrupt.*.json' >/dev/null; rm -f /state/progress.json; mkdir /state/progress.json"
+          docker run --rm --network none --volume hacker-cli-gym-ci-recovery:/var/lib/hacker-cli-gym \
+            hacker-cli-gym:test status
+          docker run --rm --volume hacker-cli-gym-ci-recovery:/state \
+            --entrypoint bash hacker-cli-gym:test -c "set -e; test -f /state/progress.json; compgen -G '/state/progress.corrupt-special.*.json' >/dev/null; rm -f /state/progress.json; mkfifo /state/progress.json"
+          docker run --rm --network none --volume hacker-cli-gym-ci-recovery:/var/lib/hacker-cli-gym \
+            hacker-cli-gym:test status
+          docker run --rm --volume hacker-cli-gym-ci-recovery:/state \
+            --entrypoint bash hacker-cli-gym:test -c "set -e; test -f /state/progress.json; compgen -G '/state/progress.corrupt-special.*.json' >/dev/null"
+          docker volume rm hacker-cli-gym-ci-recovery
+
+      - name: Exercise launcher diagnostics and syntax
+        run: |
+          ./gym version
+          bash -n gym container/gym
 
       - name: Report image size
         run: |
           docker image inspect hacker-cli-gym:test --format 'Image size: {{.Size}} bytes'
 
   powershell-gym:
-    runs-on: windows-latest
+    runs-on: windows-2022
+    env:
+      HACKER_CLI_GYM_STATE_ROOT: ${{ runner.temp }}\hacker-cli-gym-ci
     defaults:
       run:
         shell: powershell
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
 
       - name: Regenerate the PowerShell curriculum
         run: |
           node tools/generate-powershell-curriculum.mjs
-          git diff --exit-code -- curriculum/powershell.json
+          node tools/generate-linux-curriculum.mjs
+          node tools/validate-curricula.mjs
+          git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
+
+      - name: Exercise PowerShell progress recovery
+        run: |
+          New-Item -ItemType Directory -Path $env:HACKER_CLI_GYM_STATE_ROOT -Force | Out-Null
+          $progress = Join-Path $env:HACKER_CLI_GYM_STATE_ROOT 'powershell-progress.json'
+          [IO.File]::WriteAllText($progress, '{broken', [Text.Encoding]::UTF8)
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 status
+          if(-not (Get-ChildItem $env:HACKER_CLI_GYM_STATE_ROOT -Filter 'powershell-progress.corrupt-*.json')) { throw 'Corrupt progress was not preserved.' }
+          Remove-Item $progress -Force
+          New-Item -ItemType Directory -Path $progress | Out-Null
+          powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 status
+          if(-not (Test-Path $progress -PathType Leaf)) { throw 'A directory at the progress path was not recovered.' }
+          if(-not (Get-ChildItem $env:HACKER_CLI_GYM_STATE_ROOT -Filter 'powershell-progress.corrupt-special-*')) { throw 'Unsafe progress entry was not preserved.' }
 
       - name: Run all 500 PowerShell reference approaches
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 test
+
+      - name: Check PowerShell parser compatibility
+        run: |
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\gym.ps1), [ref]$tokens, [ref]$errors)
+          if($errors.Count){ $errors | Format-List; exit 1 }
+
+      - name: Analyze PowerShell runner
+        run: |
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+          $results = Invoke-ScriptAnalyzer -Path .\gym.ps1 -Severity Error
+          if($results){ $results | Format-Table; exit 1 }

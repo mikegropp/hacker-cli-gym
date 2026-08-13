@@ -1,0 +1,93 @@
+name: release image
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Validate generated curricula
+        run: |
+          node tools/generate-linux-curriculum.mjs
+          node tools/generate-powershell-curriculum.mjs
+          node tools/validate-curricula.mjs
+          git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
+
+      - name: Test the exact Linux release source
+        run: |
+          bash -n gym container/gym
+          docker build --tag hacker-cli-gym:release-test .
+          docker volume create hacker-cli-gym-release-progress
+          docker run --rm --init --network none --read-only \
+            --tmpfs /work:rw,exec,nosuid,nodev,size=256m,mode=1777 \
+            --tmpfs /tmp:rw,exec,nosuid,nodev,size=64m,mode=1777 \
+            --tmpfs /run:rw,nosuid,nodev,size=32m,mode=0755 \
+            --tmpfs /var/tmp:rw,exec,nosuid,nodev,size=32m,mode=1777 \
+            --security-opt no-new-privileges:true --cap-drop ALL \
+            --cap-add AUDIT_WRITE --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add FSETID \
+            --cap-add NET_RAW --cap-add SETGID --cap-add SETUID --cap-add SYS_CHROOT \
+            --pids-limit 512 --memory 768m --cpus 2.0 \
+            --volume hacker-cli-gym-release-progress:/var/lib/hacker-cli-gym \
+            hacker-cli-gym:release-test test
+          docker volume rm hacker-cli-gym-release-progress
+
+      - name: Calculate launcher-compatible source fingerprint
+        id: source
+        shell: bash
+        run: |
+          manifest=''
+          while IFS= read -r file; do
+            digest=$(sha256sum "$file" | awk '{print $1}')
+            manifest+="$file $digest"$'\n'
+          done < <(printf '%s\n' Dockerfile container/gym curriculum/linux.json; find sample-files -type f -print | LC_ALL=C sort)
+          fingerprint=$(printf '%s' "$manifest" | sha256sum | awk '{print $1}')
+          printf 'fingerprint=%s\n' "$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/hacker-cli-gym
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+            type=sha
+
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GYM_SOURCE_HASH=${{ steps.source.outputs.fingerprint }}
+            GYM_BUILD_VERSION=${{ github.ref_name }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

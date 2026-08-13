@@ -2,13 +2,44 @@ services:
   gym:
     build:
       context: .
+      args:
+        GYM_SOURCE_HASH: ${HACKER_CLI_GYM_SOURCE_HASH:-compose-build}
+        GYM_BUILD_VERSION: ${HACKER_CLI_GYM_BUILD_VERSION:-local}
     image: hacker-cli-gym:local
     stdin_open: true
     tty: true
+    init: true
     network_mode: none
+    environment:
+      HACKER_CLI_GYM_LOCAL_DATE: ${HACKER_CLI_GYM_LOCAL_DATE:-}
+    read_only: true
+    tmpfs:
+      - /work:rw,exec,nosuid,nodev,size=268435456,mode=1777
+      - /tmp:rw,exec,nosuid,nodev,size=67108864,mode=1777
+      - /run:rw,nosuid,nodev,size=33554432,mode=0755
+      - /var/tmp:rw,exec,nosuid,nodev,size=33554432,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - AUDIT_WRITE
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - FSETID
+      - NET_RAW
+      - SETGID
+      - SETUID
+      - SYS_CHROOT
+    pids_limit: ${HACKER_CLI_GYM_PIDS_LIMIT:-512}
+    mem_limit: ${HACKER_CLI_GYM_MEMORY:-768m}
+    cpus: ${HACKER_CLI_GYM_CPUS:-2.0}
     volumes:
       - gym-progress:/var/lib/hacker-cli-gym
 
 volumes:
   gym-progress:
-    name: hacker-cli-gym-progress
+    name: ${HACKER_CLI_GYM_VOLUME:-hacker-cli-gym-progress}
+    labels:
+      io.hacker-cli-gym.profile: ${HACKER_CLI_GYM_PROFILE:-default}

@@ -2,5 +2,4 @@
 .github
 .gitignore
 .DS_Store
-sample-files
 tests

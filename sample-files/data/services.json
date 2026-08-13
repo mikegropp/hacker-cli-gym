@@ -1,0 +1,5 @@
+[
+  {"name":"api","team":"platform","enabled":true,"ports":[8080,8443]},
+  {"name":"worker","team":"data","enabled":true,"ports":[]},
+  {"name":"legacy","team":"platform","enabled":false,"ports":[9000]}
+]
