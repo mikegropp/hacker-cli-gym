@@ -57,7 +57,7 @@ function Write-Gym {
     )
     $arguments = @{}
     if ($NoNewline) { $arguments.NoNewline = $true }
-    if ($script:UseColor -and $null -ne $Color) { $arguments.ForegroundColor = $Color.Value }
+    if ($script:UseColor -and $null -ne $Color) { $arguments.ForegroundColor = [ConsoleColor]$Color }
     Write-Host $Text @arguments
 }
 
