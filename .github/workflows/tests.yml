@@ -91,7 +91,7 @@ jobs:
   powershell-gym:
     runs-on: windows-2022
     env:
-      HACKER_CLI_GYM_STATE_ROOT: ${{ runner.temp }}\hacker-cli-gym-ci
+      HACKER_CLI_GYM_STATE_ROOT: ${{ github.workspace }}\hacker-cli-gym-ci-state
     defaults:
       run:
         shell: powershell
