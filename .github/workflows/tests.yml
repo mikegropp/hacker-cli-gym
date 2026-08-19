@@ -137,5 +137,7 @@ jobs:
       - name: Analyze PowerShell runner
         run: |
           Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
-          $results = Invoke-ScriptAnalyzer -Path .\gym.ps1,.\windows-sandbox.ps1 -Severity Error
+          $results = foreach($path in '.\gym.ps1', '.\windows-sandbox.ps1') {
+            Invoke-ScriptAnalyzer -Path $path -Severity Error
+          }
           if($results){ $results | Format-Table; exit 1 }
