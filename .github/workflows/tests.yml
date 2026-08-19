@@ -12,9 +12,9 @@ jobs:
   linux-gym:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           package-manager-cache: false
@@ -29,7 +29,7 @@ jobs:
             /mnt/gym /mnt/container/gym
 
       - name: Analyze Dockerfile
-        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
+        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6 # v3.4.0
         with:
           dockerfile: Dockerfile
           failure-threshold: error
@@ -96,9 +96,9 @@ jobs:
       run:
         shell: powershell
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           package-manager-cache: false
@@ -128,12 +128,14 @@ jobs:
 
       - name: Check PowerShell parser compatibility
         run: |
-          $tokens=$null; $errors=$null
-          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\gym.ps1), [ref]$tokens, [ref]$errors)
-          if($errors.Count){ $errors | Format-List; exit 1 }
+          foreach($path in '.\gym.ps1', '.\windows-sandbox.ps1') {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors)
+            if($errors.Count){ $errors | Format-List; exit 1 }
+          }
 
       - name: Analyze PowerShell runner
         run: |
           Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
-          $results = Invoke-ScriptAnalyzer -Path .\gym.ps1 -Severity Error
+          $results = Invoke-ScriptAnalyzer -Path .\gym.ps1,.\windows-sandbox.ps1 -Severity Error
           if($results){ $results | Format-Table; exit 1 }

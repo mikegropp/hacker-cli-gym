@@ -131,10 +131,12 @@ between reps, run a due review, inspect status, and verify progress recovery.
 ## Release images
 
 Tags matching `v*` publish Linux images with provenance and an SBOM for amd64
-and arm64 through `.github/workflows/release-image.yml`. The release workflow
-must use the same source-fingerprint inputs as `./gym`; `./gym pull` refuses an
-image that does not exactly match the checked-out Dockerfile, runner,
-curriculum, and bundled sample files.
+and arm64 through `.github/workflows/release-image.yml`. It requires the normal
+Linux and PowerShell jobs to have passed for the exact release commit instead
+of running the full 1,000-reference suite again. The release workflow must use
+the same source-fingerprint inputs as `./gym`; `./gym pull` refuses an image
+that does not exactly match the checked-out Dockerfile, runner, curriculum, and
+bundled sample files.
 
 ## Pull requests
 

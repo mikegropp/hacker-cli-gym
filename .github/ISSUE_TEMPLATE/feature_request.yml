@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused improvement to the free CLI learning tool.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Learner need
+      description: What practical problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Keep the suggestion simple, CLI-first, and locally usable.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

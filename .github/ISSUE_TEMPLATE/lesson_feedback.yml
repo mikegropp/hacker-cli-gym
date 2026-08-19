@@ -1,0 +1,33 @@
+name: Lesson feedback
+description: Suggest a clearer, more practical, or more open-ended exercise.
+title: "[Lesson]: "
+labels:
+  - curriculum
+body:
+  - type: input
+    id: lesson
+    attributes:
+      label: Lesson ID or command
+      placeholder: linux-cut-4 or Select-Object
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Feedback type
+      options:
+        - Task is unclear
+        - Hint or example needs work
+        - Valid solution is rejected
+        - Incorrect solution is accepted
+        - Fixture is unrealistic
+        - Other curriculum improvement
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Suggested improvement
+      description: Explain the current behavior and what would make it better.
+    validations:
+      required: true

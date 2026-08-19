@@ -7,6 +7,7 @@ on:
       - v*
 
 permissions:
+  checks: read
   contents: read
   packages: write
 
@@ -14,37 +15,22 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: 24
-          package-manager-cache: false
-
-      - name: Validate generated curricula
+      - name: Require green tests for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          node tools/generate-linux-curriculum.mjs
-          node tools/generate-powershell-curriculum.mjs
-          node tools/validate-curricula.mjs
-          git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
-
-      - name: Test the exact Linux release source
-        run: |
-          bash -n gym container/gym
-          docker build --tag hacker-cli-gym:release-test .
-          docker volume create hacker-cli-gym-release-progress
-          docker run --rm --init --network none --read-only \
-            --tmpfs /work:rw,exec,nosuid,nodev,size=256m,mode=1777 \
-            --tmpfs /tmp:rw,exec,nosuid,nodev,size=64m,mode=1777 \
-            --tmpfs /run:rw,nosuid,nodev,size=32m,mode=0755 \
-            --tmpfs /var/tmp:rw,exec,nosuid,nodev,size=32m,mode=1777 \
-            --security-opt no-new-privileges:true --cap-drop ALL \
-            --cap-add AUDIT_WRITE --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add FSETID \
-            --cap-add NET_RAW --cap-add SETGID --cap-add SETUID --cap-add SYS_CHROOT \
-            --pids-limit 512 --memory 768m --cpus 2.0 \
-            --volume hacker-cli-gym-release-progress:/var/lib/hacker-cli-gym \
-            hacker-cli-gym:release-test test
-          docker volume rm hacker-cli-gym-release-progress
+          check_runs=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100")
+          for required_check in linux-gym powershell-gym; do
+            successful=$(jq --arg name "$required_check" \
+              '[.check_runs[] | select(.name == $name and .conclusion == "success")] | length' \
+              <<< "$check_runs")
+            if [ "$successful" -lt 1 ]; then
+              echo "::error::A successful $required_check check is required for commit $GITHUB_SHA."
+              exit 1
+            fi
+          done
 
       - name: Calculate launcher-compatible source fingerprint
         id: source

@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible problem in a runner, lesson, or launcher.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: dropdown
+    id: track
+    attributes:
+      label: Track
+      options:
+        - Linux / Docker
+        - Windows PowerShell
+        - Both
+        - Documentation or release tooling
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Paste `./gym version`, `.\gym.ps1 version`, or the commit ID.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the rep ID, exact input, output, and expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Run ...
+        2. Enter ...
+        3. See ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed passwords, tokens, personal paths, and other sensitive data.
+          required: true

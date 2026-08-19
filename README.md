@@ -54,6 +54,23 @@ docker compose run --build --rm gym
 
 Requirements: Windows, Git, and Windows PowerShell 5.1.
 
+For a completely disposable Windows session, use
+[Windows Sandbox](https://learn.microsoft.com/windows/security/application-security/application-isolation/windows-sandbox/)
+on a supported Pro, Enterprise, or Education edition:
+
+```powershell
+git clone https://github.com/mikegropp/hacker-cli-gym.git
+Set-Location hacker-cli-gym
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows-sandbox.ps1
+```
+
+The repository is mapped read-only, clipboard and printer redirection are
+disabled, and closing Sandbox discards the session. Add `-PersistProgress` to
+retain only the gym state in a dedicated `%LOCALAPPDATA%\HackerCliGymSandbox`
+folder between disposable sessions.
+
+To run directly on a Windows VM or host instead:
+
 ```powershell
 git clone https://github.com/mikegropp/hacker-cli-gym.git
 Set-Location hacker-cli-gym
@@ -71,8 +88,8 @@ script blocks. `:shell` enters an ungraded exploration mode that shares the same
 session; type `:return` to resume the mission.
 
 The PowerShell prompt is intentionally real and unrestricted. Commands you
-choose can affect Windows, so use a non-administrator shell and a VM when you
-want the entire operating system to be disposable.
+choose can affect Windows, so use a non-administrator shell or the Windows
+Sandbox launcher when you want the entire operating system to be disposable.
 
 Only the gym workspace is cleared between reps. Cleanup treats junctions and
 symbolic links as links and never follows them into outside directories.
@@ -268,6 +285,8 @@ disposable, rerun the command whenever you want a clean copy.
   commands execute in the real shell against a freshly seeded `/work`.
 - `gym.ps1` is the native Windows controller. Learner commands execute as real
   PowerShell against a workspace under the user's local application data.
+- `windows-sandbox.ps1` launches that same PowerShell gym in a disposable
+  Windows Sandbox with only the read-only repository mapped by default.
 - `curriculum/linux.json` and `curriculum/powershell.json` are generated lesson
   catalogs shared by the runners, validators, and CI.
 
@@ -303,7 +322,10 @@ and strong assertions for missions that require exact output. CI regenerates
 both catalogs, checks for drift, parses both runners, builds the Linux image,
 and executes all 500 reference approaches on each platform.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) to add or improve lessons.
+See [CONTRIBUTING.md](CONTRIBUTING.md) to add or improve lessons. Project
+history and planned work live in [CHANGELOG.md](CHANGELOG.md) and
+[ROADMAP.md](ROADMAP.md). Please report vulnerabilities through the private
+process in [SECURITY.md](SECURITY.md).
 
 ## License
 
