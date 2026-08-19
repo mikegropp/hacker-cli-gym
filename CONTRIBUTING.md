@@ -120,9 +120,11 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 test
 ```
 
 CI regenerates both catalogs and rejects generated-file drift. It also validates
-the curriculum contract, checks runner syntax, builds the real Debian image,
-proves untouched fixtures fail, exercises declared negative cases, and executes
-all 500 reference approaches in Bash and all 500 in Windows PowerShell.
+the curriculum contract and checks runner syntax. When a platform's runtime or
+curriculum changes, CI builds its real environment, proves untouched fixtures
+fail, exercises declared negative cases, and executes all 500 reference
+approaches. Unrelated changes skip that platform's long sweep, and a newer push
+cancels an obsolete in-progress run.
 
 When changing the runner, manually exercise controls and persistence as well as
 the happy path: start a rep, fail a check, use a hint, reset the workspace, jump

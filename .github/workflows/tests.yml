@@ -8,11 +8,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux-gym:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -41,10 +47,29 @@ jobs:
           node tools/validate-curricula.mjs
           git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
 
+      - name: Detect Linux runtime changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n $BASE_SHA && ! $BASE_SHA =~ ^0+$ ]] && \
+             git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null && \
+             git diff --quiet "$BASE_SHA" HEAD -- \
+               .dockerignore Dockerfile compose.yaml gym container \
+               curriculum/linux.base.json curriculum/linux.json curriculum/schema.json \
+               sample-files tools; then
+            echo 'full=false' >> "$GITHUB_OUTPUT"
+            echo 'Linux runtime and curriculum are unchanged; skipping the full reference sweep.'
+          else
+            echo 'full=true' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build the Linux gym
+        if: steps.changes.outputs.full == 'true'
         run: docker build --tag hacker-cli-gym:test .
 
       - name: Run all 500 Linux reference approaches
+        if: steps.changes.outputs.full == 'true'
         run: |
           docker volume create hacker-cli-gym-ci-progress
           docker run --rm --init --network none --read-only \
@@ -61,6 +86,7 @@ jobs:
           docker volume rm hacker-cli-gym-ci-progress
 
       - name: Exercise Linux progress recovery
+        if: steps.changes.outputs.full == 'true'
         run: |
           docker volume create hacker-cli-gym-ci-recovery
           docker run --rm --volume hacker-cli-gym-ci-recovery:/state \
@@ -80,11 +106,13 @@ jobs:
           docker volume rm hacker-cli-gym-ci-recovery
 
       - name: Exercise launcher diagnostics and syntax
+        if: steps.changes.outputs.full == 'true'
         run: |
           ./gym version
           bash -n gym container/gym
 
       - name: Report image size
+        if: steps.changes.outputs.full == 'true'
         run: |
           docker image inspect hacker-cli-gym:test --format 'Image size: {{.Size}} bytes'
 
@@ -97,6 +125,8 @@ jobs:
         shell: powershell
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -110,7 +140,30 @@ jobs:
           node tools/validate-curricula.mjs
           git diff --exit-code -- curriculum/linux.json curriculum/powershell.json
 
+      - name: Detect PowerShell runtime changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if([string]::IsNullOrWhiteSpace($env:BASE_SHA) -or $env:BASE_SHA -match '^0+$') {
+            'full=true' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          git cat-file -e "$($env:BASE_SHA)^{commit}" 2>$null
+          if($LASTEXITCODE -ne 0) {
+            'full=true' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          git diff --quiet $env:BASE_SHA HEAD -- gym.ps1 curriculum/powershell.base.json curriculum/powershell.json curriculum/schema.json tools
+          if($LASTEXITCODE -eq 0) {
+            'full=false' >> $env:GITHUB_OUTPUT
+            Write-Host 'PowerShell runtime and curriculum are unchanged; skipping the full reference sweep.'
+          } else {
+            'full=true' >> $env:GITHUB_OUTPUT
+          }
+
       - name: Exercise PowerShell progress recovery
+        if: steps.changes.outputs.full == 'true'
         run: |
           New-Item -ItemType Directory -Path $env:HACKER_CLI_GYM_STATE_ROOT -Force | Out-Null
           $progress = Join-Path $env:HACKER_CLI_GYM_STATE_ROOT 'powershell-progress.json'
@@ -124,6 +177,7 @@ jobs:
           if(-not (Get-ChildItem $env:HACKER_CLI_GYM_STATE_ROOT -Filter 'powershell-progress.corrupt-special-*')) { throw 'Unsafe progress entry was not preserved.' }
 
       - name: Run all 500 PowerShell reference approaches
+        if: steps.changes.outputs.full == 'true'
         run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\gym.ps1 test
 
       - name: Check PowerShell parser compatibility

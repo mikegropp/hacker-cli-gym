@@ -118,8 +118,14 @@ progress_document_valid() {
 }
 
 progress_backup_name() {
-  local reason=${1:-backup}
-  printf '%s/progress.%s.%s.json' "$PROGRESS_DIR" "$reason" "$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  local reason=${1:-backup} base candidate suffix=0
+  base="$PROGRESS_DIR/progress.$reason.$(date -u +%Y%m%dT%H%M%S%NZ)-$$"
+  candidate="$base.json"
+  while [[ -e $candidate || -L $candidate ]]; do
+    suffix=$((suffix + 1))
+    candidate="$base-$suffix.json"
+  done
+  printf '%s' "$candidate"
 }
 
 progress_write_atomic() {

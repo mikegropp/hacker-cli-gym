@@ -320,7 +320,9 @@ The validator enforces stable dimensions and IDs, three progressive hints,
 annotated examples, prerequisite metadata, supported checks, specific feedback,
 and strong assertions for missions that require exact output. CI regenerates
 both catalogs, checks for drift, parses both runners, builds the Linux image,
-and executes all 500 reference approaches on each platform.
+and executes all 500 reference approaches for each platform whose runtime or
+curriculum changed. Unrelated changes keep the same checks but skip the long
+reference sweep.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) to add or improve lessons. Project
 history and planned work live in [CHANGELOG.md](CHANGELOG.md) and
